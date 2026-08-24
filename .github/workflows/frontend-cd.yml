@@ -1,0 +1,69 @@
+name: frontend-cd
+
+# main 에 프론트 변경이 머지되면 빌드 → S3 업로드 → CloudFront 무효화.
+# 배포 방식: S3(정적 호스팅 원본) + CloudFront(배포/캐시, /api 는 백엔드로 프록시).
+# 인증: 장기 액세스 키 대신 GitHub OIDC 로 IAM Role 을 그때그때 assume 한다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/frontend-cd.yml'
+  workflow_dispatch:
+
+# 같은 배포가 겹쳐 돌면 S3 상태가 꼬일 수 있어 한 번에 하나만.
+concurrency:
+  group: frontend-cd
+  cancel-in-progress: true
+
+permissions:
+  id-token: write # OIDC 토큰 발급에 필요
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # CloudFront 가 /api 를 백엔드 오리진으로 프록시하므로 프론트는 동일 오리진 상대경로(/api)를 쓴다.
+      # 따라서 VITE_API_BASE_URL 을 주입하지 않는다(비우면 axios baseURL='' → 동일 오리진).
+      - name: Build
+        run: pnpm -C frontend build
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Sync to S3
+        run: |
+          # 해시가 붙은 정적 자산(assets/*)은 파일명이 바뀌면 새로 받으므로 길게 캐시.
+          # --delete 로 이전 배포의 잔여 파일을 정리한다. index.html 만 예외 처리.
+          aws s3 sync frontend/dist "s3://${{ vars.S3_BUCKET }}" \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+          # index.html 은 항상 최신 번들을 가리키도록 캐시하지 않는다.
+          aws s3 cp frontend/dist/index.html "s3://${{ vars.S3_BUCKET }}/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*"
