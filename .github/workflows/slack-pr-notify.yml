@@ -37,7 +37,7 @@ jobs:
                 { type: "context", elements: [
                     { type: "mrkdwn", text: ("👤  *작성자*  " + $author) },
                     { type: "mrkdwn", text: ("🎯  *대상*  `" + $base + "`") },
-                    { type: "mrkdwn", text: "📝  리뷰 부탁드려요!" }
+                    { type: "mrkdwn", text: "📝  확인 부탁드려요!" }
                 ] }
               ]
             }')
