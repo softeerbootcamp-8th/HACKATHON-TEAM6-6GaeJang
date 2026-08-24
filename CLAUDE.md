@@ -146,23 +146,22 @@ src/
 
 `.claude/skills/feature-impl/` — 기능 하나를 백엔드+프론트 끝까지 구현하는 파이프라인.
 상세 구현 규칙은 이 스킬의 `references/backend.md`, `references/frontend.md`에 있다.
-`backend/CLAUDE.md`, `frontend/CLAUDE.md`는 그 파일들을 가리키는 짧은 포인터다.
 규칙을 고칠 때는 references 쪽을 고친다 — 같은 규칙을 두 곳에 두지 않는다.
 
 ## 자주 쓰는 명령
 
+백엔드:
 ```bash
-docker compose up -d
+docker compose up -d                          # MySQL (호스트 포트 3307)
+cd backend && ./gradlew bootRun                # 기본 프로파일 local
+SPRING_PROFILES_ACTIVE=h2 ./gradlew bootRun    # MySQL 없이 띄우기
+./gradlew test
 ```
 
+프론트엔드:
 ```bash
-cd backend && ./gradlew bootRun
-```
-
-```bash
-pnpm -C frontend dev
-```
-
-```bash
-pnpm -C frontend generate:api
+pnpm -C frontend dev          # 5173, /api는 8080으로 proxy
+pnpm -C frontend generate:api # 백엔드 띄운 뒤 스펙 재생성
+pnpm -C frontend typecheck
+pnpm -C frontend lint
 ```
