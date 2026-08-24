@@ -1,0 +1,19 @@
+{
+  "eslint.workingDirectories": ["frontend"],
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[java]": {
+    "editor.formatOnSave": false
+  },
+  "prettier.configPath": "frontend/.prettierrc.json",
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "files.exclude": {
+    "**/build": true,
+    "**/.gradle": true
+  },
+  "search.exclude": {
+    "frontend/src/api/generated": true,
+    "frontend/src/routeTree.gen.ts": true,
+    "frontend/pnpm-lock.yaml": true
+  }
+}
