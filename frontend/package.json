@@ -3,7 +3,6 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "packageManager": "pnpm@11.15.1",
   "scripts": {
     "dev": "vite",
     "build": "pnpm routes:gen && tsc -b && vite build",

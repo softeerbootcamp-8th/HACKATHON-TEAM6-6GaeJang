@@ -6,6 +6,7 @@ on:
       - 'frontend/**'
       - 'pnpm-workspace.yaml'
       - 'pnpm-lock.yaml'
+      - 'package.json'
       - '.github/workflows/frontend-ci.yml'
   push:
     branches: [main]
