@@ -8,7 +8,8 @@
 ├── frontend/    React 19 · Vite 8 · TS · pnpm        ← VS Code 로 저장소 루트를 연다
 ├── docker-compose.yml   로컬 MySQL 8.4 (호스트 포트 3307, DB/계정 모두 delipot)
 ├── .claude/skills/      Claude Code 스킬 (feature-impl)
-└── .github/workflows/   프론트/백엔드 CI
+├── infra/               서버 초기 세팅 스크립트 + 배포 문서
+└── .github/workflows/   CI 2개 (PR 검증) + CD 2개 (main 배포)
 ```
 
 ## 처음 세팅
@@ -78,3 +79,8 @@ pnpm -C frontend lint && pnpm -C frontend typecheck
   루트 프로젝트명은 `delipot-backend`, 베이스 패키지는 `com.delipot`.
 - VS Code: 저장소 루트를 열면 `.vscode/settings.json`이 eslint/prettier 경로를 프론트로 잡아준다.
   권장 확장은 `.vscode/extensions.json` 참고.
+
+## 배포
+
+`main` 브랜치에 머지되면 변경된 쪽만 자동 배포된다 (백엔드는 systemd 재시작 + 헬스체크, 프론트는 nginx 심링크 교체).
+서버 초기 세팅, GitHub Secrets 등록, 롤백 방법은 [infra/README.md](infra/README.md) 참고.

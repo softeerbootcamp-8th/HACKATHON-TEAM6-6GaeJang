@@ -1,0 +1,92 @@
+name: backend-cd
+
+# main = 배포용 브랜치. dev → main PR 이 머지되면 배포된다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-cd.yml'
+  workflow_dispatch:
+
+# 배포가 겹치면 서버 상태가 꼬인다. 같은 브랜치의 이전 배포는 끝날 때까지 기다린다.
+concurrency:
+  group: backend-cd
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      # 배포 전에 한 번 더 돌린다. CI 를 통과한 커밋이어도 머지 결과물은 다를 수 있다.
+      - name: Test
+        run: ./gradlew test --no-daemon
+        working-directory: backend
+
+      - name: Build jar
+        run: ./gradlew bootJar --no-daemon
+        working-directory: backend
+
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy.pem
+          chmod 600 ~/.ssh/deploy.pem
+          # 호스트 키를 미리 받아둔다 (StrictHostKeyChecking 을 끄지 않기 위해)
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: jar 전송
+        run: |
+          JAR=$(ls backend/build/libs/*.jar | grep -v plain | head -1)
+          echo "전송할 파일: $JAR"
+          scp -i ~/.ssh/deploy.pem "$JAR" \
+            "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/delipot-backend-${{ github.sha }}.jar"
+
+      - name: 릴리스 교체 + 재시작
+        run: |
+          ssh -i ~/.ssh/deploy.pem "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
+            "SHA=${{ github.sha }} bash -s" <<'REMOTE'
+          set -euo pipefail
+          BACKEND_DIR=/opt/delipot/backend
+
+          # 롤백할 수 있게 릴리스를 sha 별로 남기고 current 심링크만 바꾼다.
+          # /opt/delipot 은 bootstrap 에서 배포 계정 소유로 잡아뒀으므로 sudo 가 필요 없다.
+          mv "/tmp/delipot-backend-$SHA.jar" "$BACKEND_DIR/releases/$SHA.jar"
+          chmod 640 "$BACKEND_DIR/releases/$SHA.jar"
+          ln -sfn "$BACKEND_DIR/releases/$SHA.jar" "$BACKEND_DIR/current.jar"
+
+          # 오래된 릴리스는 5개만 남긴다 (디스크 차서 배포 실패하는 사고 방지)
+          ls -1t "$BACKEND_DIR/releases"/*.jar | tail -n +6 | xargs -r rm -f
+
+          sudo systemctl restart delipot-backend
+          REMOTE
+
+      - name: 헬스체크 (실패하면 배포 실패로 본다)
+        run: |
+          ssh -i ~/.ssh/deploy.pem "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            BODY=$(curl -fsS http://127.0.0.1:8080/api/health 2>/dev/null || true)
+            case "$BODY" in
+              *'"status":"UP"'*) echo "기동 확인: $BODY"; exit 0 ;;
+            esac
+            sleep 3
+          done
+          echo "헬스체크 실패 — 최근 로그:" >&2
+          sudo journalctl -u delipot-backend -n 50 --no-pager >&2 || true
+          exit 1
+          REMOTE
+
+      - name: 키 삭제
+        if: always()
+        run: rm -f ~/.ssh/deploy.pem
