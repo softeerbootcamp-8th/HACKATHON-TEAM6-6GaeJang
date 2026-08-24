@@ -1,0 +1,7 @@
+# 모노레포 루트: pnpm 은 프론트 패키지만 관리한다 (백엔드는 Gradle).
+packages:
+  - frontend
+
+# pnpm 11 은 의존성의 install 스크립트를 기본 차단한다. 허용한 것만 여기 남긴다.
+allowBuilds:
+  esbuild: true

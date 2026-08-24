@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: delipot-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  jackson:
+    # Jackson 3(Boot 4) 기본이 ISO-8601 문자열이라 날짜 포맷 설정은 따로 두지 않는다.
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+
+app:
+  version: 0.0.1-SNAPSHOT
+  cors:
+    allowed-origins: http://localhost:5173
+
+# 프론트 Orval이 읽는 스펙 경로. Swagger UI: http://localhost:8080/swagger-ui.html
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+---
+# 기본 로컬 개발: docker compose up -d 로 띄운 MySQL 사용
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:mysql://localhost:3307/delipot?characterEncoding=UTF-8&serverTimezone=Asia/Seoul
+    username: delipot
+    password: delipot
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # 해커톤 기간 동안 로컬은 update 고정. 스키마 확정 후 마이그레이션 도입 시 validate로 전환.
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+logging:
+  level:
+    org.hibernate.SQL: debug
+
+---
+# MySQL 없이 백엔드만 띄울 때 (스펙 생성, 프론트 단독 작업)
+spring:
+  config:
+    activate:
+      on-profile: h2
+  datasource:
+    url: jdbc:h2:mem:delipot;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # 운영에서는 스키마를 코드가 바꾸지 못하게 한다.
+      ddl-auto: validate
+    open-in-view: false
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

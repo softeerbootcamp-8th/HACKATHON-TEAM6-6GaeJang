@@ -1,0 +1,30 @@
+# compose 프로젝트 이름 고정 (컨테이너/볼륨 접두어가 디렉토리명 대신 delipot 이 된다)
+name: delipot
+
+# 로컬 개발용 MySQL. `docker compose up -d` 후 백엔드를 local 프로파일로 띄운다.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: delipot-mysql
+    ports:
+      # 3306 은 다른 프로젝트 컨테이너가 쓰는 경우가 많아 호스트는 3307 로 뺀다.
+      - '3307:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: delipot
+      MYSQL_USER: delipot
+      MYSQL_PASSWORD: delipot
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-pdelipot']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+volumes:
+  mysql-data:

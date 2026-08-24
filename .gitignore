@@ -1,0 +1,28 @@
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.DS_Store
+
+# 백엔드 (Gradle)
+backend/.gradle/
+backend/build/
+backend/out/
+
+# 프론트 (pnpm/vite) — pnpm 워크스페이스 루트가 저장소 루트다
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.tanstack/
+
+# 환경변수
+.env
+.env.local
+*.env.local
+
+# 로그
+*.log
