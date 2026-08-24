@@ -1,0 +1,47 @@
+name: Slack PR Notification
+
+# 팀 공용 PR 알림 (서버 사이드). PR 이 열릴 때 Slack 채널로 카드형 메시지를 전송한다.
+# 웹훅 URL 은 repo secret SLACK_WEBHOOK_URL 에 보관.
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          TITLE_LINK="*<${PR_URL}|#${PR_NUMBER} · ${PR_TITLE}>*"
+
+          PAYLOAD=$(jq -n \
+            --arg fallback "🚀 새 PR #${PR_NUMBER}: ${PR_TITLE}" \
+            --arg link "$TITLE_LINK" \
+            --arg author "$PR_AUTHOR" \
+            --arg base "$PR_BASE" \
+            '{
+              text: $fallback,
+              blocks: [
+                { type: "header", text: { type: "plain_text", text: "🚀  새 Pull Request 등록", emoji: true } },
+                { type: "section", text: { type: "mrkdwn", text: $link } },
+                { type: "context", elements: [
+                    { type: "mrkdwn", text: ("👤  *작성자*  " + $author) },
+                    { type: "mrkdwn", text: ("🎯  *대상*  `" + $base + "`") },
+                    { type: "mrkdwn", text: "📝  확인 부탁드려요!" }
+                ] }
+              ]
+            }')
+
+          curl -sf -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD"
