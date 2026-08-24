@@ -132,16 +132,16 @@ src/
 - `backend-ci.yml` — `./gradlew test` + `bootJar`. 테스트가 h2 프로파일이라 CI에 MySQL 서비스가 필요 없다.
 - `frontend-ci.yml` — `pnpm lint` + `typecheck` + `build`.
 
-### CD (main push, `workflow_dispatch`로 수동 실행 가능)
-- `backend-cd.yml` — test → `bootJar` → scp → `releases/<sha>.jar` 배치 → `current.jar` 심링크 교체
-  → `systemctl restart delipot-backend` → `/api/health`가 `UP`이 될 때까지 확인(실패 시 배포 실패 + journalctl 출력)
-- `frontend-cd.yml` — `pnpm build` → tar → scp → `releases/<sha>/` 압축 해제 → `current` 심링크 교체
-  → `nginx reload`
-- 서버 구조: nginx :80이 `/`는 정적 파일, `/api/`는 `127.0.0.1:8080`으로 프록시. 운영에서 CORS 없음.
-- 릴리스는 각각 최근 5개만 보관. 롤백은 심링크만 되돌린다 (`infra/README.md` 참고).
+### CD — 백엔드만 (main push, `workflow_dispatch`로 수동 실행 가능)
+- `backend-cd.yml` — test → `bootJar` → scp → `/opt/delipot/backend/releases/<sha>.jar` 배치
+  → `current.jar` 심링크 교체 → `systemctl restart delipot-backend`
+  → `/api/health`가 `UP`이 될 때까지 확인 (실패 시 배포 실패 + journalctl 출력). 릴리스는 최근 5개 보관.
 - 시크릿 3개: `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`(= `delipot-app.pem` 내용).
   DB 접속정보는 서버의 `/etc/delipot/backend.env`에만 둔다 — 저장소·시크릿에 넣지 않는다.
-- 서버 초기 세팅은 `infra/bootstrap-app.sh` 한 번 실행 (nginx, systemd, 디렉토리/권한). JDK 21은 사전 설치 전제.
+- 워크플로우가 전제하는 서버 상태: JDK 21 설치, `delipot-backend.service` systemd 유닛 등록,
+  `/opt/delipot/backend/releases` 가 배포 계정 쓰기 가능, 배포 계정이 `systemctl restart delipot-backend`
+  와 `journalctl -u delipot-backend` 를 NOPASSWD 로 실행 가능. 이 준비는 사람이 서버에서 한다.
+- 프론트 배포는 미정 — 방식이 정해지면 워크플로우를 추가한다.
 - 모니터링 별도 구축 없음 — 문제 생기면 서버 로그 직접 확인.
 - 이 설정은 기능 구현 스킬(`feature-impl`) 범위 밖. 워크플로우 파일 수정은 별도로 요청할 것.
 
