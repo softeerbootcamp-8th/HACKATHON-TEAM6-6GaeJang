@@ -124,7 +124,7 @@ src/
 ## CI/CD (프로젝트 초기 세팅, 한 번만)
 
 ### 브랜치
-- `main` — 배포용. push 되면 CD가 돈다. 직접 커밋하지 않는다.
+- `main` — 배포용. 직접 커밋하지 않는다.
 - `dev` — 통합 브랜치. 기능 브랜치는 여기로 PR 한다.
 - 기능 브랜치 — `feat/...`, `fix/...`, `chore/...`
 
@@ -132,16 +132,11 @@ src/
 - `backend-ci.yml` — `./gradlew test` + `bootJar`. 테스트가 h2 프로파일이라 CI에 MySQL 서비스가 필요 없다.
 - `frontend-ci.yml` — `pnpm lint` + `typecheck` + `build`.
 
-### CD — 백엔드만 (main push, `workflow_dispatch`로 수동 실행 가능)
-- `backend-cd.yml` — test → `bootJar` → scp → `/opt/delipot/backend/releases/<sha>.jar` 배치
-  → `current.jar` 심링크 교체 → `systemctl restart delipot-backend`
-  → `/api/health`가 `UP`이 될 때까지 확인 (실패 시 배포 실패 + journalctl 출력). 릴리스는 최근 5개 보관.
-- 시크릿 3개: `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`(= `delipot-app.pem` 내용).
-  DB 접속정보는 서버의 `/etc/delipot/backend.env`에만 둔다 — 저장소·시크릿에 넣지 않는다.
-- 워크플로우가 전제하는 서버 상태: JDK 21 설치, `delipot-backend.service` systemd 유닛 등록,
-  `/opt/delipot/backend/releases` 가 배포 계정 쓰기 가능, 배포 계정이 `systemctl restart delipot-backend`
-  와 `journalctl -u delipot-backend` 를 NOPASSWD 로 실행 가능. 이 준비는 사람이 서버에서 한다.
-- 프론트 배포는 미정 — 방식이 정해지면 워크플로우를 추가한다.
+### CD
+- **아직 없다.** 배포 방식(EC2 SSH+SCP / S3+CloudFront 등)이 정해지면 워크플로우를 추가한다.
+- 배포용 브랜치는 `main` 이다. CD 를 붙일 때 `on: push: branches: [main]` 으로 건다.
+- 백엔드는 `prod` 프로파일이 `DB_URL`/`DB_USERNAME`/`DB_PASSWORD`/`CORS_ALLOWED_ORIGINS` 를
+  환경변수로 받게 되어 있다. 배포 환경에서 이 값만 주입하면 된다.
 - 모니터링 별도 구축 없음 — 문제 생기면 서버 로그 직접 확인.
 - 이 설정은 기능 구현 스킬(`feature-impl`) 범위 밖. 워크플로우 파일 수정은 별도로 요청할 것.
 
