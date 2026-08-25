@@ -62,7 +62,7 @@ export interface PotCreateRequest {
   /**
    * 총대를 포함한 모집 정원
    * @minimum 2
-   * @maximum 20
+   * @maximum 4
    */
   capacity: number
   /**
