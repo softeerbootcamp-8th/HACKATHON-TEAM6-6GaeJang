@@ -3,6 +3,7 @@ package com.delipot.global.error;
 import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -34,6 +35,21 @@ public class GlobalExceptionHandler {
 			.collect(Collectors.joining(", "));
 		return ResponseEntity.status(ErrorCode.INVALID_INPUT.getStatus())
 			.body(ApiResponse.fail(ErrorCode.INVALID_INPUT, detail));
+	}
+
+	/**
+	 * 요청 본문 자체를 못 읽은 경우 — 깨진 JSON, 타입 불일치("capacity": "네명"),
+	 * 파싱 불가한 날짜 포맷 등. 처리하지 않으면 catch-all로 흘러 500 + ERROR 로그가 되는데,
+	 * 원인은 전부 클라이언트 입력이므로 400으로 끊는다.
+	 *
+	 * <p>메시지를 그대로 내리지 않는 이유는 Jackson 예외 본문에 패키지·클래스 경로가
+	 * 노출되기 때문이다.
+	 */
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpMessageNotReadableException e) {
+		log.warn("요청 본문을 읽을 수 없음: {}", e.getMostSpecificCause().getMessage());
+		return ResponseEntity.status(ErrorCode.INVALID_INPUT.getStatus())
+			.body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "요청 본문의 형식이 올바르지 않습니다."));
 	}
 
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
