@@ -1,7 +1,8 @@
 import { UsersRound } from 'lucide-react'
 
 import type { PotSummaryResponse } from '@/api/generated/model'
-import { formatDeadline } from '@/routes/pots/-utils/formatDeadline'
+import { formatDistrictAddress } from '@/lib/addressFormatter'
+import { formatDeadline, hasDeadlinePassed } from '@/routes/pots/-utils/formatDeadline'
 
 type PotCardProps = {
   pot: PotSummaryResponse
@@ -11,6 +12,10 @@ type PotCardProps = {
 }
 
 export function PotCard({ pot, onOpen, onComplete, isCompleting }: PotCardProps) {
+  const deadlineLabel = hasDeadlinePassed(pot.deadline)
+    ? '주문 진행 중'
+    : formatDeadline(pot.deadline)
+
   return (
     <article className="bg-bg rounded-[20px] border p-5 shadow-sm">
       <button
@@ -20,7 +25,7 @@ export function PotCard({ pot, onOpen, onComplete, isCompleting }: PotCardProps)
       >
         <div className="flex items-center justify-between gap-3">
           <span className="bg-primary-soft text-primary rounded-full px-2.5 py-1 text-xs font-semibold">
-            {pot.isHost ? '주문 진행 중' : formatDeadline(pot.deadline)}
+            {deadlineLabel}
           </span>
           <span className="bg-chip text-muted-fg flex items-center gap-1 rounded-full px-2.5 py-1 text-xs">
             <UsersRound className="size-3.5" />
@@ -32,7 +37,7 @@ export function PotCard({ pot, onOpen, onComplete, isCompleting }: PotCardProps)
         <div className="mt-5 flex items-center justify-between gap-3">
           <p className="min-w-0 text-sm">
             <span className="text-muted-fg mr-3">만날 장소</span>
-            <span className="font-semibold">{pot.meetingPlace}</span>
+            <span className="font-semibold">{formatDistrictAddress(pot.meetingPlace)}</span>
           </p>
           <MemberStack members={pot.members} />
         </div>
@@ -70,7 +75,7 @@ function MemberStack({ members = [] }: Pick<PotSummaryResponse, 'members'>) {
           key={member.memberId ?? index}
           title={member.nickname}
           className={`border-bg text-primary-fg flex size-6 items-center justify-center rounded-full border-2 text-[10px] font-semibold ${
-            member.isHost ? 'bg-primary' : 'bg-fg/35'
+            member.isHost ? 'bg-primary' : 'bg-muted-fg'
           }`}
         >
           {member.nickname?.trim().charAt(0) || '?'}

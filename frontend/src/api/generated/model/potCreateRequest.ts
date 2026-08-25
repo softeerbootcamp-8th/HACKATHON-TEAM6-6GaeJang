@@ -11,9 +11,9 @@
  */
 export interface PotCreateRequest {
   /**
-   * 글 제목
-   * @minLength 0
-   * @maxLength 100
+   * 글 제목. 공백 제외 최대 30자
+   * @minLength 1
+   * @maxLength 30
    */
   title: string
   /**
@@ -73,9 +73,8 @@ export interface PotCreateRequest {
   /** 모집 마감시간. 오프셋을 반드시 포함한다 */
   deadline: string
   /**
-   * 상세 설명
-   * @minLength 0
-   * @maxLength 2000
+   * 상세 설명. 공백 제외 최대 200자
+   * @maxLength 200
    */
   description?: string
   /**

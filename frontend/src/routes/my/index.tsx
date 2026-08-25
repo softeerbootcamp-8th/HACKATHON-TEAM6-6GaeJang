@@ -73,8 +73,8 @@ function MyPage() {
                       총대 {member.hostedPotCount ?? 0}회
                     </span>
                   </div>
-                  <p className="text-muted-fg mt-0.5 truncate text-xs">
-                    {member.roadAddress || member.address}
+                  <p className="text-muted-fg mt-0.5 text-xs leading-5 break-words">
+                    {member.roadAddress || member.address || member.jibunAddress}
                   </p>
                 </div>
               </div>
