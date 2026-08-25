@@ -37,7 +37,7 @@ import lombok.RequiredArgsConstructor;
 public class PotService {
 
 	/** 마감시간이 너무 촉박하면 아무도 참여하지 못한다. 최소 여유를 도메인 규칙으로 둔다. */
-	private static final int MIN_DEADLINE_MINUTES = 10;
+	private static final int MIN_DEADLINE_MINUTES = 30;
 
 	/** 홈 목록 조회 반경. 걸어가서 받아올 수 있는 거리로 기획에서 정한 값이다. */
 	private static final int SEARCH_RADIUS_METERS = 300;
@@ -409,7 +409,7 @@ public class PotService {
 	}
 
 	/**
-	 * {@code @Future}가 과거 시각은 걸러 주지만, "지금부터 10분"이라는 도메인 규칙은
+	 * {@code @Future}가 과거 시각은 걸러 주지만, "지금부터 30분"이라는 도메인 규칙은
 	 * Bean Validation으로 표현할 수 없어 주입받은 Clock으로 여기서 확인한다.
 	 *
 	 * <p>{@link OffsetDateTime} 비교는 오프셋을 반영한 절대 시각(instant) 기준이라

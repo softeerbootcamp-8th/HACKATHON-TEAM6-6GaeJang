@@ -47,12 +47,38 @@
 }
 
 @layer components {
+  .app-shell {
+    @apply bg-bg fixed inset-0 mx-auto w-full max-w-[393px] overflow-hidden shadow-xl;
+    isolation: isolate;
+    overscroll-behavior: none;
+  }
+
+  /* iOS PWA가 내부 스크롤 레이어를 합성할 때 상태바 안전 영역에 내용이 비치는 현상을 막는다. */
+  .app-shell::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 40;
+    height: max(28px, env(safe-area-inset-top));
+    background-color: var(--color-bg);
+    pointer-events: none;
+  }
+
   .sheet-slide-up {
     animation: sheet-slide-up 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .form-control {
-    @apply bg-surface text-fg placeholder:text-muted-fg/60 focus:ring-primary/30 h-14 w-full rounded-xl border-0 px-4 text-[15px] outline-none focus:ring-2;
+    @apply bg-surface text-fg placeholder:text-muted-fg/60 focus:ring-primary/30 h-14 w-full rounded-xl border-0 px-4 text-base outline-none focus:ring-2;
+  }
+
+  .deadline-wheel {
+    scrollbar-width: none;
+    overscroll-behavior-y: contain;
+  }
+
+  .deadline-wheel::-webkit-scrollbar {
+    display: none;
   }
 }
 

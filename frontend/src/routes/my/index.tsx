@@ -46,12 +46,9 @@ function MyPage() {
   })
 
   return (
-    <main
-      aria-label="마이페이지"
-      className="bg-bg mx-auto h-dvh max-w-[393px] overflow-hidden shadow-xl"
-    >
+    <main aria-label="마이페이지" className="app-shell">
       <div className="relative h-full">
-        <div className="h-full overflow-y-auto px-5 pt-[max(28px,env(safe-area-inset-top))] pb-32">
+        <div className="h-full overflow-y-auto overscroll-y-contain px-5 pt-[max(28px,env(safe-area-inset-top))] pb-32">
           <h1 className="text-xl font-bold">마이페이지</h1>
 
           {me.isPending ? (

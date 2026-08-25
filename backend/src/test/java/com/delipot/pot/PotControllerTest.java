@@ -162,6 +162,18 @@ class PotControllerTest {
 	}
 
 	@Test
+	@DisplayName("모집 인원이 5명이면 400 — 배달팟 정원은 최대 4명이다")
+	void rejectsCapacityFive() throws Exception {
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body().replace("\"capacity\": 4", "\"capacity\": 5")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+
+		verify(potService, never()).create(any(), any());
+	}
+
+	@Test
 	@DisplayName("마감시간이 과거면 400")
 	void rejectsPastDeadline() throws Exception {
 		String past = OffsetDateTime.now(SEOUL).minusHours(1).withNano(0).toString();

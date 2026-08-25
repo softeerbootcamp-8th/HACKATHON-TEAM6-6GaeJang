@@ -36,12 +36,9 @@ function ChatRoomListPage() {
   )
 
   return (
-    <main
-      aria-label="채팅방 목록"
-      className="bg-bg mx-auto h-dvh max-w-[393px] overflow-hidden shadow-xl"
-    >
+    <main aria-label="채팅방 목록" className="app-shell">
       <div className="relative h-full">
-        <div className="h-full overflow-y-auto px-5 pt-[max(28px,env(safe-area-inset-top))] pb-32">
+        <div className="h-full overflow-y-auto overscroll-y-contain px-5 pt-[max(28px,env(safe-area-inset-top))] pb-32">
           <header className="bg-bg sticky top-0 z-20 -mx-5 px-5 pb-4">
             <h1 className="text-lg font-bold">채팅</h1>
           </header>

@@ -11,6 +11,9 @@ import { AddressSetupStep } from '../../-components/address/AddressSetupStep'
 import type { SelectedLocation } from '../../-components/address/KakaoMapPicker'
 import { DeadlineSheet } from './-components/DeadlineSheet'
 
+/** 서버가 요청을 받을 때도 선택한 최소 마감시간이 줄지 않도록 전송 지연만큼 여유를 둔다. */
+const DEADLINE_REQUEST_BUFFER_MS = 15_000
+
 export const Route = createFileRoute('/pots/new/')({
   beforeLoad: ({ context }) => requireAuth(context.queryClient),
   component: NewPotPage,
@@ -19,7 +22,13 @@ export const Route = createFileRoute('/pots/new/')({
 /** 만날 장소는 지도에서 고른 좌표까지 한 덩어리로 움직이므로 폼 상태에서 분리한다. */
 type FormState = Omit<
   PotCreateRequest,
-  'latitude' | 'longitude' | 'deadline' | 'meetingPlace' | 'meetingRoadAddress' | 'meetingJibunAddress'
+  | 'latitude'
+  | 'longitude'
+  | 'deadline'
+  | 'meetingPlace'
+  | 'meetingRoadAddress'
+  | 'meetingJibunAddress'
+  | 'minOrderAmount'
 >
 
 const emptyForm: FormState = {
@@ -27,7 +36,6 @@ const emptyForm: FormState = {
   storeName: '',
   storeUrl: '',
   capacity: 2,
-  minOrderAmount: 0,
   description: '',
   bankName: '',
   accountNumber: '',
@@ -39,8 +47,8 @@ function NewPotPage() {
   const [form, setForm] = useState(emptyForm)
   const [meetingLocation, setMeetingLocation] = useState<SelectedLocation | null>(null)
   const [locationPickerOpen, setLocationPickerOpen] = useState(false)
-  const [hours, setHours] = useState(8)
-  const [minutes, setMinutes] = useState(0)
+  const [hours, setHours] = useState(0)
+  const [minutes, setMinutes] = useState(30)
   const [deadlineLabel, setDeadlineLabel] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -70,7 +78,9 @@ function NewPotPage() {
       setErrorMessage('마감 시간을 선택해주세요.')
       return
     }
-    const deadline = new Date(Date.now() + (hours * 60 + minutes) * 60_000).toISOString()
+    const deadline = new Date(
+      Date.now() + (hours * 60 + minutes) * 60_000 + DEADLINE_REQUEST_BUFFER_MS,
+    ).toISOString()
     // 좌표는 반드시 만날 장소의 것이어야 한다 — 회원 집 좌표를 쓰면 홈의 300m 반경 판정이
     // 실제 수령 장소와 어긋나, 근처 사람에게 안 보이거나 먼 사람에게 보인다.
     createPot.mutate({
@@ -81,6 +91,9 @@ function NewPotPage() {
         meetingJibunAddress: meetingLocation.jibunAddress,
         latitude: meetingLocation.latitude,
         longitude: meetingLocation.longitude,
+        // 최소 주문 금액은 생성 화면에서 받지 않는다. 기존 API/DB 계약이 요구하는 값은
+        // "제한 없음"을 뜻하는 0으로 고정해 상세 조회와 기존 데이터 호환성을 유지한다.
+        minOrderAmount: 0,
         deadline,
       },
     })
@@ -105,13 +118,13 @@ function NewPotPage() {
       className="bg-bg mx-auto h-dvh max-w-[393px] overflow-hidden shadow-xl"
     >
       <div className="sheet-slide-up relative flex h-full flex-col">
-        <header className="bg-bg z-20 flex shrink-0 items-center justify-center px-5 pt-[max(28px,env(safe-area-inset-top))] pb-4">
+        <header className="bg-bg relative z-20 flex shrink-0 items-center justify-center px-5 pt-[max(28px,env(safe-area-inset-top))] pb-4">
           <h1 className="text-lg font-bold">새 배달팟 만들기</h1>
           <button
             type="button"
             onClick={() => navigate({ to: '/' })}
             aria-label="닫기"
-            className="absolute right-4 bottom-2 flex size-11 items-center justify-center rounded-full"
+            className="absolute right-4 bottom-1 flex size-11 items-center justify-center rounded-full"
           >
             <X className="size-6" />
           </button>
@@ -132,14 +145,14 @@ function NewPotPage() {
               className="form-control"
             />
           </FormField>
-          <FormField label="가게" hint="배달앱 가게 페이지 링크를 복사해서 붙여넣어 주세요">
+          <FormField label="가게 링크" hint="배달앱 가게 페이지 링크를 복사해서 붙여넣어 주세요">
             <input
               required
               type="url"
               maxLength={500}
               value={form.storeUrl}
               onChange={(e) => setField('storeUrl', e.target.value)}
-              placeholder="링크를 복사해서 붙여넣어 주세요"
+              placeholder="배달 앱의 가게 링크를 복사해서 붙여넣어 주세요"
               className="form-control"
             />
           </FormField>
@@ -182,27 +195,11 @@ function NewPotPage() {
               <span className="font-bold">{form.capacity}명</span>
               <CounterButton
                 label="인원 늘리기"
-                disabled={form.capacity >= 20}
+                disabled={form.capacity >= 4}
                 onClick={() => setField('capacity', form.capacity + 1)}
               >
                 <Plus className="size-5" />
               </CounterButton>
-            </div>
-          </FormField>
-          <FormField label="가게 최소 주문 금액">
-            <div className="relative">
-              <input
-                required
-                min={0}
-                type="number"
-                value={form.minOrderAmount || ''}
-                onChange={(e) => setField('minOrderAmount', Number(e.target.value))}
-                placeholder="최소 주문 금액을 입력해주세요"
-                className="form-control pr-10"
-              />
-              <span className="text-muted-fg absolute top-1/2 right-4 -translate-y-1/2 text-sm">
-                원
-              </span>
             </div>
           </FormField>
           <FormField label="마감 시간">
@@ -254,7 +251,9 @@ function NewPotPage() {
               required
               pattern="[0-9-]{8,30}"
               value={form.accountNumber}
-              onChange={(e) => setField('accountNumber', formatAccountNumber(form.bankName, e.target.value))}
+              onChange={(e) =>
+                setField('accountNumber', formatAccountNumber(form.bankName, e.target.value))
+              }
               placeholder="계좌 번호"
               inputMode="numeric"
               className="form-control mt-2"

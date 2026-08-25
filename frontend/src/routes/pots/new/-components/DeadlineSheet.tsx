@@ -1,4 +1,9 @@
+import { useEffect, useRef, type UIEvent } from 'react'
 import { X } from 'lucide-react'
+
+const ITEM_HEIGHT = 56
+const HOURS = Array.from({ length: 25 }, (_, index) => index)
+const MINUTES = [0, 30]
 
 type DeadlineSheetProps = {
   hours: number
@@ -39,43 +44,108 @@ export function DeadlineSheet({ hours, minutes, onChange, onClose, onSave }: Dea
         <p className="text-muted-fg mt-1 text-xs">
           이 시간까지 정원이 다 모이지 않으면 자동으로 취소돼요
         </p>
-        <div className="mx-auto mt-12 flex max-w-[310px] items-center justify-center gap-3 text-center">
-          <label className="flex items-center gap-2">
-            <span className="sr-only">몇 시간 후</span>
-            <select
-              value={hours}
-              onChange={(event) => onChange(Number(event.target.value), minutes)}
-              className="bg-bg h-14 w-18 border-y text-center text-xl font-bold outline-none"
-            >
-              {Array.from({ length: 8 }, (_, index) => index + 1).map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-            <span className="text-xl font-bold whitespace-nowrap">시간</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <span className="sr-only">몇 분 후</span>
-            <select
-              value={minutes}
-              onChange={(event) => onChange(hours, Number(event.target.value))}
-              className="bg-bg h-14 w-18 border-y text-center text-xl font-bold outline-none"
-            >
-              <option value={0}>00</option>
-              <option value={30}>30</option>
-            </select>
-            <span className="text-xl font-bold whitespace-nowrap">분 후</span>
-          </label>
+        <div className="relative mx-auto mt-7 flex h-[280px] max-w-[310px] items-center justify-center gap-3 text-center">
+          <div
+            aria-hidden="true"
+            className="border-border pointer-events-none absolute inset-x-5 top-1/2 z-10 h-14 -translate-y-1/2 border-y"
+          />
+          <div
+            aria-hidden="true"
+            className="from-bg pointer-events-none absolute inset-x-0 top-0 z-20 h-24 bg-linear-to-b to-transparent"
+          />
+          <div
+            aria-hidden="true"
+            className="from-bg pointer-events-none absolute inset-x-0 bottom-0 z-20 h-24 bg-linear-to-t to-transparent"
+          />
+
+          <WheelPicker
+            label="몇 시간 후"
+            values={HOURS}
+            value={hours}
+            formatValue={(value) => String(value)}
+            onChange={(value) => onChange(value, value === 0 && minutes === 0 ? 30 : minutes)}
+          />
+          <span className="z-10 text-xl font-bold whitespace-nowrap">시간</span>
+          <WheelPicker
+            key={hours === 0 ? 'minutes-after-zero-hours' : 'minutes'}
+            label="몇 분 후"
+            values={hours === 0 ? [30] : MINUTES}
+            value={minutes}
+            formatValue={(value) => String(value).padStart(2, '0')}
+            onChange={(value) => onChange(hours, value)}
+          />
+          <span className="z-10 text-xl font-bold whitespace-nowrap">분 후</span>
         </div>
         <button
           type="button"
           onClick={onSave}
-          className="bg-primary text-primary-fg mt-24 h-13 w-full rounded-xl text-sm font-bold"
+          className="bg-primary text-primary-fg mt-6 h-13 w-full rounded-xl text-sm font-bold"
         >
           저장
         </button>
       </section>
+    </div>
+  )
+}
+
+type WheelPickerProps = {
+  label: string
+  values: readonly number[]
+  value: number
+  formatValue: (value: number) => string
+  onChange: (value: number) => void
+}
+
+function WheelPicker({ label, values, value, formatValue, onChange }: WheelPickerProps) {
+  const wheelRef = useRef<HTMLDivElement>(null)
+  const selectedIndex = Math.max(0, values.indexOf(value))
+  const optionIdPrefix = label.replaceAll(' ', '-')
+
+  useEffect(() => {
+    wheelRef.current?.scrollTo({ top: selectedIndex * ITEM_HEIGHT })
+    // 선택창이 열릴 때 저장돼 있던 위치로 한 번만 맞춘다. 스크롤 중 재실행하면 휠이 튄다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    const nextIndex = Math.min(
+      values.length - 1,
+      Math.max(0, Math.round(event.currentTarget.scrollTop / ITEM_HEIGHT)),
+    )
+    const nextValue = values[nextIndex]
+    if (nextValue !== value) onChange(nextValue)
+  }
+
+  const selectValue = (index: number) => {
+    wheelRef.current?.scrollTo({ top: index * ITEM_HEIGHT, behavior: 'smooth' })
+    onChange(values[index])
+  }
+
+  return (
+    <div
+      ref={wheelRef}
+      role="listbox"
+      aria-label={label}
+      aria-activedescendant={`${optionIdPrefix}-${value}`}
+      tabIndex={0}
+      onScroll={handleScroll}
+      className="deadline-wheel z-10 h-[280px] w-20 snap-y snap-mandatory overflow-y-auto py-28"
+    >
+      {values.map((option, index) => (
+        <button
+          id={`${optionIdPrefix}-${option}`}
+          key={option}
+          type="button"
+          role="option"
+          aria-selected={option === value}
+          onClick={() => selectValue(index)}
+          className={`flex h-14 w-full snap-center items-center justify-center text-xl transition-all ${
+            option === value ? 'text-fg font-bold' : 'text-muted-fg/35'
+          }`}
+        >
+          {formatValue(option)}
+        </button>
+      ))}
     </div>
   )
 }
