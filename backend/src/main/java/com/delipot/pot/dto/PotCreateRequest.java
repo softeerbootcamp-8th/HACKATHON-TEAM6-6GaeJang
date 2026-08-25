@@ -17,11 +17,6 @@ import jakarta.validation.constraints.Size;
 @Schema(description = "팟 생성 요청")
 public record PotCreateRequest(
 
-	// TODO: 인증 도입 시 이 필드를 제거하고 @LoginMember로 주입받는다.
-	@Schema(description = "총대(작성자) 회원 ID. 인증 도입 전 임시 필드", example = "1")
-	@NotNull(message = "총대 ID는 필수입니다.")
-	Long hostId,
-
 	@Schema(description = "글 제목", example = "역삼역 호백반점 같이 시켜요")
 	@NotBlank(message = "제목은 필수입니다.")
 	@Size(max = 100, message = "제목은 100자 이하여야 합니다.")

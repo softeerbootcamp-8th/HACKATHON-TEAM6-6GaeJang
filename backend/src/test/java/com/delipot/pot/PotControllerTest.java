@@ -14,6 +14,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import org.mockito.ArgumentCaptor;
 
+import com.delipot.auth.web.AuthContext;
 import com.delipot.pot.dto.PotCreateRequest;
 import com.delipot.pot.dto.PotCreateResponse;
 
@@ -31,12 +34,24 @@ import com.delipot.pot.dto.PotCreateResponse;
 class PotControllerTest {
 
 	private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+	private static final Long LOGIN_MEMBER_ID = 7L;
 
 	@Autowired
 	private MockMvc mockMvc;
 
 	@MockitoBean
 	private PotService potService;
+
+	/** 인증 인터셉터가 @WebMvcTest 에도 등록되므로 ThreadLocal 컨텍스트를 직접 심는다. */
+	@BeforeEach
+	void authenticate() {
+		AuthContext.setMemberId(LOGIN_MEMBER_ID);
+	}
+
+	@AfterEach
+	void clearAuth() {
+		AuthContext.clear();
+	}
 
 	/** 마감시간은 @Future 검증을 타므로 실행 시각 기준 미래(KST 오프셋)로 만든다. */
 	private static String body() {
@@ -46,7 +61,6 @@ class PotControllerTest {
 	private static String bodyWithDeadline(String deadline) {
 		return """
 			{
-			  "hostId": 1,
 			  "title": "역삼역 호백반점 같이 시켜요",
 			  "storeName": "호백반점",
 			  "storeUrl": "https://web.coupangeats.com/share?storeId=781313",
@@ -65,7 +79,7 @@ class PotControllerTest {
 	}
 
 	private void givenServiceSucceeds() {
-		given(potService.create(any(PotCreateRequest.class))).willReturn(new PotCreateResponse(
+		given(potService.create(any(Long.class), any(PotCreateRequest.class))).willReturn(new PotCreateResponse(
 			1L, PotStatus.RECRUITING, 1, OffsetDateTime.of(2026, 8, 25, 18, 0, 0, 0, ZoneOffset.ofHours(9))
 		));
 	}
@@ -102,7 +116,7 @@ class PotControllerTest {
 			.andExpect(status().isCreated());
 
 		ArgumentCaptor<PotCreateRequest> captor = ArgumentCaptor.forClass(PotCreateRequest.class);
-		verify(potService).create(captor.capture());
+		verify(potService).create(any(Long.class), captor.capture());
 
 		assertThat(captor.getValue().deadline().atZoneSameInstant(SEOUL).toLocalDateTime())
 			.hasToString("2026-12-25T19:30");
@@ -117,7 +131,7 @@ class PotControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
-		verify(potService, never()).create(any());
+		verify(potService, never()).create(any(), any());
 	}
 
 	@Test
@@ -132,7 +146,7 @@ class PotControllerTest {
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
-		verify(potService, never()).create(any());
+		verify(potService, never()).create(any(), any());
 	}
 
 	@Test
@@ -144,7 +158,7 @@ class PotControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
-		verify(potService, never()).create(any());
+		verify(potService, never()).create(any(), any());
 	}
 
 	@Test
@@ -158,7 +172,7 @@ class PotControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
-		verify(potService, never()).create(any());
+		verify(potService, never()).create(any(), any());
 	}
 
 	@Test
@@ -170,7 +184,7 @@ class PotControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
-		verify(potService, never()).create(any());
+		verify(potService, never()).create(any(), any());
 	}
 
 	@Test
@@ -182,19 +196,35 @@ class PotControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
-		verify(potService, never()).create(any());
+		verify(potService, never()).create(any(), any());
 	}
 
 	@Test
-	@DisplayName("총대 ID가 없으면 400 — 인증 도입 전까지는 요청 바디가 유일한 출처다")
-	void rejectsMissingHostId() throws Exception {
+	@DisplayName("총대는 로그인한 회원으로 고정된다 — 요청 본문으로 지정할 수 없다")
+	void hostComesFromSession() throws Exception {
+		givenServiceSucceeds();
+
+		// 요청 본문에 hostId 를 끼워 넣어도 무시되고 세션의 회원이 총대가 된다
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(body().replace("\"hostId\": 1,", "")))
-			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+				.content(body().replace("{", "{\"hostId\": 999,")))
+			.andExpect(status().isCreated());
 
-		verify(potService, never()).create(any());
+		verify(potService).create(org.mockito.ArgumentMatchers.eq(LOGIN_MEMBER_ID), any(PotCreateRequest.class));
+	}
+
+	@Test
+	@DisplayName("비로그인 상태면 401 — 남을 총대로 세우는 것을 막는다")
+	void rejectsUnauthenticated() throws Exception {
+		AuthContext.clear();
+
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body()))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+
+		verify(potService, never()).create(any(), any());
 	}
 
 	/** 회귀 방지: 아래 세 경우는 이전에 모두 500 INTERNAL_ERROR로 나갔다. */
@@ -207,7 +237,7 @@ class PotControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
-		verify(potService, never()).create(any());
+		verify(potService, never()).create(any(), any());
 	}
 
 	@Test
@@ -219,7 +249,7 @@ class PotControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
-		verify(potService, never()).create(any());
+		verify(potService, never()).create(any(), any());
 	}
 
 	@Test
@@ -231,6 +261,6 @@ class PotControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
-		verify(potService, never()).create(any());
+		verify(potService, never()).create(any(), any());
 	}
 }
