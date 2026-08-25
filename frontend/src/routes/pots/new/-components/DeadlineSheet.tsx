@@ -63,12 +63,13 @@ export function DeadlineSheet({ hours, minutes, onChange, onClose, onSave }: Dea
             values={HOURS}
             value={hours}
             formatValue={(value) => String(value)}
-            onChange={(value) => onChange(value, minutes)}
+            onChange={(value) => onChange(value, value === 0 && minutes === 0 ? 30 : minutes)}
           />
           <span className="z-10 text-xl font-bold whitespace-nowrap">시간</span>
           <WheelPicker
+            key={hours === 0 ? 'minutes-after-zero-hours' : 'minutes'}
             label="몇 분 후"
-            values={MINUTES}
+            values={hours === 0 ? [30] : MINUTES}
             value={minutes}
             formatValue={(value) => String(value).padStart(2, '0')}
             onChange={(value) => onChange(hours, value)}
