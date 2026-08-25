@@ -12,3 +12,12 @@ export function formatDeadline(value?: string) {
 
   return `${sameDay ? '오늘' : `${deadline.getMonth() + 1}/${deadline.getDate()}`} ${time} 마감`
 }
+
+export function hasDeadlinePassed(value?: string, now = new Date()) {
+  if (!value) return false
+
+  const deadline = new Date(value)
+  if (Number.isNaN(deadline.getTime())) return false
+
+  return deadline.getTime() <= now.getTime()
+}

@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Plus, Search } from 'lucide-react'
 
 import { getMeQueryKey, useMe, useUpdateProfile } from '@/api/generated/auth/auth'
 import { getGetPotsQueryKey, useCompletePot, useGetPots } from '@/api/generated/pot/pot'
 import type { PotSummaryResponse } from '@/api/generated/model'
+import { formatLocalAddress } from '@/lib/addressFormatter'
 import { requireAuth } from '@/lib/authGuard'
 
 import { AddressSetupStep } from './-components/address/AddressSetupStep'
@@ -16,13 +17,18 @@ import { PotDetailSheet } from './-components/PotDetailSheet'
 
 export const Route = createFileRoute('/')({
   beforeLoad: ({ context }) => requireAuth(context.queryClient),
+  validateSearch: (search: Record<string, unknown>): { openPotId?: number } => {
+    const openPotId = Number(search.openPotId)
+    return Number.isSafeInteger(openPotId) && openPotId > 0 ? { openPotId } : {}
+  },
   component: HomePage,
 })
 
 function HomePage() {
+  const navigate = useNavigate()
+  const { openPotId } = Route.useSearch()
   const [keyword, setKeyword] = useState('')
   const [actionError, setActionError] = useState('')
-  const [openPotId, setOpenPotId] = useState<number | null>(null)
   const [addressPickerOpen, setAddressPickerOpen] = useState(false)
   const queryClient = useQueryClient()
   const me = useMe({ query: { retry: false } })
@@ -99,7 +105,9 @@ function HomePage() {
             aria-label="내 위치 변경"
             className="flex items-center gap-2 py-2 text-[15px] font-bold"
           >
-            {member?.address || member?.roadAddress || '주소를 설정해주세요'}
+            {formatLocalAddress(
+              member?.roadAddress || member?.address || member?.jibunAddress,
+            ) || '주소를 설정해주세요'}
             <ChevronDown className="fill-fg size-4" />
           </button>
           <label className="bg-surface text-muted-fg mt-2 flex h-12 items-center gap-3 rounded-xl px-3">
@@ -141,12 +149,20 @@ function HomePage() {
               <PotSection
                 title="내가 연 배달팟"
                 items={hosted}
-                onOpen={setOpenPotId}
+                onOpen={(potId) => navigate({ to: '/', search: { openPotId: potId } })}
                 onComplete={(potId) => complete.mutate({ potId })}
                 completingId={complete.variables?.potId}
               />
-              <PotSection title="참여중인 배달팟" items={joined} onOpen={setOpenPotId} />
-              <PotSection title="전체 배달팟" items={all} onOpen={setOpenPotId} />
+              <PotSection
+                title="참여중인 배달팟"
+                items={joined}
+                onOpen={(potId) => navigate({ to: '/', search: { openPotId: potId } })}
+              />
+              <PotSection
+                title="전체 배달팟"
+                items={all}
+                onOpen={(potId) => navigate({ to: '/', search: { openPotId: potId } })}
+              />
               {hosted.length + joined.length + all.length === 0 && (
                 <StateMessage>
                   현재 진행중인 배달팟이 없어요
@@ -170,7 +186,10 @@ function HomePage() {
         <MobileBottomNav active="home" />
 
         {openPotId != null && (
-          <PotDetailSheet potId={openPotId} onClose={() => setOpenPotId(null)} />
+          <PotDetailSheet
+            potId={openPotId}
+            onClose={() => navigate({ to: '/', search: {}, replace: true })}
+          />
         )}
       </div>
     </main>

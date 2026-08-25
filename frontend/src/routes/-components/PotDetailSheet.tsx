@@ -10,6 +10,7 @@ import {
   useJoinPot,
 } from '@/api/generated/pot/pot'
 import type { PotDetailResponse } from '@/api/generated/model'
+import { formatDistrictAddress } from '@/lib/addressFormatter'
 
 import { formatDeadline } from '../pots/-utils/formatDeadline'
 
@@ -22,8 +23,8 @@ type PotDetailSheetProps = {
 }
 
 /**
- * 팟 카드를 누르면 홈 화면 위로 올라오는 바텀시트. 화면을 다 채우지 않고 위쪽을 살짝 남겨
- * 뒤에 있던 화면이 그대로 보이게 하고, 손잡이를 끌어내리면 닫힌다.
+ * 팟 카드를 누르면 홈 화면 위로 올라오는 바텀시트. 상태 표시 영역만 남기고 주소·검색 영역부터
+ * 덮어서 상세 내용에 충분한 높이를 확보하며, 손잡이를 끌어내리면 닫힌다.
  */
 export function PotDetailSheet({ potId, onClose }: PotDetailSheetProps) {
   const [isEnteringMenu, setIsEnteringMenu] = useState(false)
@@ -51,7 +52,7 @@ export function PotDetailSheet({ potId, onClose }: PotDetailSheetProps) {
       />
       <div
         ref={sheetRef}
-        className={`sheet-slide-up bg-bg absolute inset-x-0 bottom-0 flex h-[86%] flex-col rounded-t-[34px] pt-3 ${
+        className={`sheet-slide-up bg-bg absolute inset-x-0 top-[max(20px,env(safe-area-inset-top))] bottom-0 flex flex-col rounded-t-[34px] pt-3 ${
           drag.isDragging ? '' : 'transition-transform duration-200'
         }`}
         style={{ transform: `translateY(${drag.offset}px)` }}
@@ -127,6 +128,10 @@ function PotOverview({ detail, onJoin }: { detail: PotDetailResponse; onJoin: ()
     !detail.isDeadlinePassed &&
     (detail.currentMemberCount ?? 0) < (detail.capacity ?? 0)
   const chatPath = detail.chatRoomId ? `/chat/${detail.chatRoomId}` : undefined
+  const meetingAddress = formatDistrictAddress(
+    detail.meetingRoadAddress || detail.meetingPlace,
+  )
+  const meetingJibunAddress = formatDistrictAddress(detail.meetingJibunAddress)
 
   return (
     <div className="relative flex h-full flex-col">
@@ -171,11 +176,11 @@ function PotOverview({ detail, onJoin }: { detail: PotDetailResponse; onJoin: ()
             <MapPin className="text-muted-fg/50 mt-0.5 size-5 shrink-0" />
             <span className="text-muted-fg w-14 shrink-0">만날 장소</span>
             <div className="min-w-0">
-              <span className="font-semibold">{detail.meetingPlace}</span>
-              {/* 지번은 있을 때만 — 지도 선택이 붙기 전에 만들어진 팟은 null이다. */}
-              {detail.meetingJibunAddress && (
+              <span className="font-semibold">{meetingAddress}</span>
+              {/* 지번은 도로명과 다른 값이 있을 때만 보조로 보여준다. */}
+              {meetingJibunAddress && meetingJibunAddress !== meetingAddress && (
                 <span className="text-muted-fg/70 mt-0.5 block text-xs">
-                  {detail.meetingJibunAddress}
+                  {meetingJibunAddress}
                 </span>
               )}
             </div>

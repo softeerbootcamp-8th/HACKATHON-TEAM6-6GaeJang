@@ -1,8 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, MapPin, Minus, Plus, X } from 'lucide-react'
 
-import { useCreatePot } from '@/api/generated/pot/pot'
+import { getGetPotsQueryKey, useCreatePot } from '@/api/generated/pot/pot'
 import { formatAccountNumber } from '@/lib/accountNumberFormatter'
 import { requireAuth } from '@/lib/authGuard'
 import type { PotCreateRequest } from '@/api/generated/model'
@@ -13,6 +14,9 @@ import { DeadlineSheet } from './-components/DeadlineSheet'
 
 /** 서버가 요청을 받을 때도 선택한 최소 마감시간이 줄지 않도록 전송 지연만큼 여유를 둔다. */
 const DEADLINE_REQUEST_BUFFER_MS = 15_000
+
+const countNonWhitespaceCharacters = (value: string) =>
+  Array.from(value.replaceAll(/\s/gu, '')).length
 
 export const Route = createFileRoute('/pots/new/')({
   beforeLoad: ({ context }) => requireAuth(context.queryClient),
@@ -44,6 +48,7 @@ const emptyForm: FormState = {
 
 function NewPotPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [form, setForm] = useState(emptyForm)
   const [meetingLocation, setMeetingLocation] = useState<SelectedLocation | null>(null)
   const [locationPickerOpen, setLocationPickerOpen] = useState(false)
@@ -55,10 +60,11 @@ function NewPotPage() {
 
   const createPot = useCreatePot({
     mutation: {
-      onSuccess: (response) =>
-        response.data?.potId
-          ? navigate({ to: '/pots/$potId', params: { potId: String(response.data.potId) } })
-          : navigate({ to: '/' }),
+      onSuccess: (response) => {
+        void queryClient.invalidateQueries({ queryKey: getGetPotsQueryKey() })
+        const potId = response.data?.potId
+        navigate({ to: '/', search: potId ? { openPotId: potId } : {} })
+      },
       onError: (error) => setErrorMessage(error.message),
     },
   })
@@ -140,7 +146,11 @@ function NewPotPage() {
               required
               maxLength={100}
               value={form.title}
-              onChange={(e) => setField('title', e.target.value)}
+              onChange={(e) => {
+                if (countNonWhitespaceCharacters(e.target.value) <= 30) {
+                  setField('title', e.target.value)
+                }
+              }}
               placeholder="제목을 입력해주세요"
               className="form-control"
             />
@@ -216,7 +226,11 @@ function NewPotPage() {
             <textarea
               maxLength={2000}
               value={form.description}
-              onChange={(e) => setField('description', e.target.value)}
+              onChange={(e) => {
+                if (countNonWhitespaceCharacters(e.target.value) <= 200) {
+                  setField('description', e.target.value)
+                }
+              }}
               placeholder="상세 설명을 입력해주세요"
               className="form-control h-32 resize-none py-4"
             />

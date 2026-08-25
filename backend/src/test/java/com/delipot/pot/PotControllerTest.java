@@ -174,6 +174,48 @@ class PotControllerTest {
 	}
 
 	@Test
+	@DisplayName("글 제목은 공백을 제외하고 30자까지 허용한다")
+	void acceptsTitleWithThirtyNonWhitespaceCharacters() throws Exception {
+		givenServiceSucceeds();
+		String title = "가".repeat(15) + " ".repeat(10) + "나".repeat(15);
+
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body().replace("역삼역 호백반점 같이 시켜요", title)))
+			.andExpect(status().isCreated());
+
+		verify(potService).create(any(), any());
+	}
+
+	@Test
+	@DisplayName("글 제목이 공백 제외 30자를 넘으면 400")
+	void rejectsTitleOverThirtyNonWhitespaceCharacters() throws Exception {
+		String title = "가".repeat(31);
+
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body().replace("역삼역 호백반점 같이 시켜요", title)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+
+		verify(potService, never()).create(any(), any());
+	}
+
+	@Test
+	@DisplayName("상세 설명이 공백 제외 200자를 넘으면 400")
+	void rejectsDescriptionOverTwoHundredNonWhitespaceCharacters() throws Exception {
+		String description = "가".repeat(201);
+
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body().replace("짜장면 먹고 싶은데 최소주문금액이 안 채워져요", description)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+
+		verify(potService, never()).create(any(), any());
+	}
+
+	@Test
 	@DisplayName("마감시간이 과거면 400")
 	void rejectsPastDeadline() throws Exception {
 		String past = OffsetDateTime.now(SEOUL).minusHours(1).withNano(0).toString();

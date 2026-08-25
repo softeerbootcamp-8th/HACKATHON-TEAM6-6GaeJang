@@ -14,12 +14,14 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import com.delipot.global.validation.NonWhitespaceSize;
+
 @Schema(description = "팟 생성 요청")
 public record PotCreateRequest(
 
-	@Schema(description = "글 제목", example = "역삼역 호백반점 같이 시켜요")
+	@Schema(description = "글 제목. 공백 제외 최대 30자", example = "역삼역 호백반점 같이 시켜요", maxLength = 30)
 	@NotBlank(message = "제목은 필수입니다.")
-	@Size(max = 100, message = "제목은 100자 이하여야 합니다.")
+	@NonWhitespaceSize(max = 30, absoluteMax = 100, message = "제목은 공백 제외 30자 이하여야 합니다.")
 	String title,
 
 	@Schema(description = "가게 이름. 홈 검색 기준", example = "호백반점")
@@ -74,8 +76,8 @@ public record PotCreateRequest(
 	@Future(message = "마감시간은 현재 시각 이후여야 합니다.")
 	OffsetDateTime deadline,
 
-	@Schema(description = "상세 설명")
-	@Size(max = 2000, message = "상세 설명은 2000자 이하여야 합니다.")
+	@Schema(description = "상세 설명. 공백 제외 최대 200자", maxLength = 200)
+	@NonWhitespaceSize(max = 200, absoluteMax = 2000, message = "상세 설명은 공백 제외 200자 이하여야 합니다.")
 	String description,
 
 	@Schema(description = "정산받을 은행", example = "카카오뱅크")
