@@ -32,9 +32,7 @@ export function LocationPermissionDialog({
         </h3>
 
         <p className="text-muted-fg mt-2 text-xs leading-relaxed">
-          우리 아파트에 진입할 때 자동으로
-          <br />
-          배달팟 현황 알림을 받을 수 있어요!
+          내 근처의 배달팟을 찾을 수 있어요
         </p>
 
         <div className="mt-6 flex flex-col gap-2">

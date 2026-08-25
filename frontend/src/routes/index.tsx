@@ -2,11 +2,13 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { requireAuth } from '@/lib/authGuard'
 
 import { AuthStatus } from './-components/AuthStatus'
 import { HealthCard } from './-components/HealthCard'
 
 export const Route = createFileRoute('/')({
+  beforeLoad: ({ context }) => requireAuth(context.queryClient),
   component: HomePage,
 })
 
