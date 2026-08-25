@@ -56,4 +56,14 @@ public class ChatRoomMember {
 	public static ChatRoomMember join(ChatRoom chatRoom, Long memberId, OffsetDateTime joinedAt) {
 		return new ChatRoomMember(chatRoom, memberId, joinedAt);
 	}
+
+	/** 뒤로 후퇴하지 않는다 — 동시 read 요청이 겹쳐도 더 과거 id로 되돌아가지 않게 한다. */
+	public void markRead(Long messageId) {
+		if (messageId == null) {
+			return;
+		}
+		if (lastReadMessageId == null || messageId > lastReadMessageId) {
+			lastReadMessageId = messageId;
+		}
+	}
 }

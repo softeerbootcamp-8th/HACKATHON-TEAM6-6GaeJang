@@ -134,6 +134,48 @@ class ChatServiceTest {
 	}
 
 	@Test
+	@DisplayName("방을 읽으면 최신 메시지 id로 lastReadMessageId가 갱신된다")
+	void markRoomRead_advancesToLatestMessage() {
+		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));
+		ChatRoomMember membership = ChatRoomMember.join(room, 1L, OffsetDateTime.now(CLOCK));
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 1L)).willReturn(Optional.of(membership));
+
+		ChatMessage lastMessage = ChatMessage.write(room, 2L, "안녕", OffsetDateTime.now(CLOCK));
+		setId(lastMessage, 5L);
+		given(chatMessageRepository.findFirstByChatRoomIdOrderByIdDesc(10L)).willReturn(Optional.of(lastMessage));
+
+		chatService.markRoomRead(1L, 10L);
+
+		assertThat(membership.getLastReadMessageId()).isEqualTo(5L);
+	}
+
+	@Test
+	@DisplayName("방에 메시지가 없으면 읽음 처리는 아무 것도 하지 않는다")
+	void markRoomRead_noMessagesIsNoOp() {
+		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));
+		ChatRoomMember membership = ChatRoomMember.join(room, 1L, OffsetDateTime.now(CLOCK));
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 1L)).willReturn(Optional.of(membership));
+		given(chatMessageRepository.findFirstByChatRoomIdOrderByIdDesc(10L)).willReturn(Optional.empty());
+
+		chatService.markRoomRead(1L, 10L);
+
+		assertThat(membership.getLastReadMessageId()).isNull();
+	}
+
+	@Test
+	@DisplayName("참여자가 아닌 memberId는 읽음 처리가 거부된다")
+	void markRoomRead_accessDenied() {
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 1L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> chatService.markRoomRead(1L, 10L))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException) e).getErrorCode())
+			.isEqualTo(ErrorCode.CHAT_ROOM_ACCESS_DENIED);
+
+		verifyNoInteractions(chatMessageRepository);
+	}
+
+	@Test
 	@DisplayName("입장 시스템 메시지는 senderId 없이 SYSTEM_JOIN 타입으로 저장된다")
 	void postSystemJoinMessage_success() {
 		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));

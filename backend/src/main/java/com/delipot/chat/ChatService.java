@@ -95,6 +95,16 @@ public class ChatService {
 		return new ChatMessagePageResponse(messages, nextCursor, hasNext);
 	}
 
+	/** 방을 열람했을 때 최신 메시지까지 읽음 처리한다. 메시지가 없으면 no-op. */
+	@Transactional
+	public void markRoomRead(Long memberId, Long roomId) {
+		ChatRoomMember membership = chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, memberId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_ACCESS_DENIED));
+
+		chatMessageRepository.findFirstByChatRoomIdOrderByIdDesc(roomId)
+			.ifPresent(lastMessage -> membership.markRead(lastMessage.getId()));
+	}
+
 	/** WebSocket STOMP SEND로 들어온 일반 텍스트 메시지를 저장한다. 방 멤버가 아니면 거부. */
 	@Transactional
 	public ChatMessageResponse postMessage(Long senderId, Long roomId, String content) {
