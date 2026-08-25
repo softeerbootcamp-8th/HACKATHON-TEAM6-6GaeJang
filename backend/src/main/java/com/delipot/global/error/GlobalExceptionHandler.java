@@ -8,6 +8,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -50,6 +51,13 @@ public class GlobalExceptionHandler {
 		log.warn("요청 본문을 읽을 수 없음: {}", e.getMostSpecificCause().getMessage());
 		return ResponseEntity.status(ErrorCode.INVALID_INPUT.getStatus())
 			.body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "요청 본문의 형식이 올바르지 않습니다."));
+	}
+
+	/** 서블릿 멀티파트 제한(application.yml)을 넘은 업로드. 컨트롤러에 도달하기 전에 던져진다. */
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<ApiResponse<Void>> handleMaxUploadSize(MaxUploadSizeExceededException e) {
+		return ResponseEntity.status(ErrorCode.INVALID_INPUT.getStatus())
+			.body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "파일 크기가 너무 큽니다."));
 	}
 
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)

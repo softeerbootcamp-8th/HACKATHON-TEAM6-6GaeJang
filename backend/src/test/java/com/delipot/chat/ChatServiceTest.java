@@ -24,14 +24,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.delipot.chat.dto.ChatMessagePageResponse;
+import com.delipot.chat.dto.ChatMessageResponse;
 import com.delipot.chat.dto.ChatRoomCreateRequest;
+import com.delipot.chat.dto.ChatRoomDetailResponse;
 import com.delipot.chat.dto.ChatRoomResponse;
 import com.delipot.chat.dto.ChatRoomSummaryResponse;
 import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
+import com.delipot.member.Member;
+import com.delipot.member.MemberRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ChatServiceTest {
@@ -45,12 +50,19 @@ class ChatServiceTest {
 	private ChatRoomMemberRepository chatRoomMemberRepository;
 	@Mock
 	private ChatMessageRepository chatMessageRepository;
+	@Mock
+	private MemberRepository memberRepository;
+	@Mock
+	private ChatImageUploader chatImageUploader;
 
 	private ChatService chatService;
 
 	@BeforeEach
 	void setUp() {
-		chatService = new ChatService(chatRoomRepository, chatRoomMemberRepository, chatMessageRepository, CLOCK);
+		chatService = new ChatService(
+			chatRoomRepository, chatRoomMemberRepository, chatMessageRepository,
+			memberRepository, chatImageUploader, CLOCK
+		);
 	}
 
 	private static void setId(Object entity, Long id) {
@@ -81,6 +93,41 @@ class ChatServiceTest {
 
 		assertThat(response.name()).isEqualTo("방");
 		verify(chatRoomMemberRepository, times(2)).save(any());
+	}
+
+	@Test
+	@DisplayName("방 상세는 참여자 수와 닉네임 목록을 함께 반환한다")
+	void getRoom_success() {
+		ChatRoom room = ChatRoom.create("방", "동진시장 사거리 편의점 앞", OffsetDateTime.now(CLOCK));
+		setId(room, 10L);
+		ChatRoomMember membership = ChatRoomMember.join(room, 1L, OffsetDateTime.now(CLOCK));
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 1L)).willReturn(Optional.of(membership));
+		given(chatRoomMemberRepository.findByChatRoomId(10L)).willReturn(List.of(
+			membership, ChatRoomMember.join(room, 2L, OffsetDateTime.now(CLOCK))
+		));
+
+		Member member1 = Member.register("01011111111", "hash", "닉네임1", "주소");
+		setId(member1, 1L);
+		Member member2 = Member.register("01022222222", "hash", "닉네임2", "주소");
+		setId(member2, 2L);
+		given(memberRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(member1, member2));
+
+		ChatRoomDetailResponse response = chatService.getRoom(1L, 10L);
+
+		assertThat(response.location()).isEqualTo("동진시장 사거리 편의점 앞");
+		assertThat(response.memberCount()).isEqualTo(2);
+		assertThat(response.members()).extracting("nickname").containsExactly("닉네임1", "닉네임2");
+	}
+
+	@Test
+	@DisplayName("참여자가 아닌 memberId는 방 상세 조회가 거부된다")
+	void getRoom_accessDenied() {
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 1L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> chatService.getRoom(1L, 10L))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException) e).getErrorCode())
+			.isEqualTo(ErrorCode.CHAT_ROOM_ACCESS_DENIED);
 	}
 
 	@Test
@@ -173,6 +220,39 @@ class ChatServiceTest {
 			.isEqualTo(ErrorCode.CHAT_ROOM_ACCESS_DENIED);
 
 		verifyNoInteractions(chatMessageRepository);
+	}
+
+	@Test
+	@DisplayName("이미지 메시지는 업로더가 돌려준 URL을 content로 IMAGE 타입 저장된다")
+	void postImageMessage_success() {
+		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));
+		ChatRoomMember membership = ChatRoomMember.join(room, 1L, OffsetDateTime.now(CLOCK));
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 1L)).willReturn(Optional.of(membership));
+
+		MockMultipartFile file = new MockMultipartFile("file", "cat.png", "image/png", new byte[] {1, 2, 3});
+		given(chatImageUploader.upload(10L, file))
+			.willReturn("https://bucket.s3.ap-northeast-2.amazonaws.com/chat-images/10/x.png");
+		given(chatMessageRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+		ChatMessageResponse response = chatService.postImageMessage(1L, 10L, file);
+
+		assertThat(response.type()).isEqualTo(ChatMessage.MessageType.IMAGE);
+		assertThat(response.content()).isEqualTo("https://bucket.s3.ap-northeast-2.amazonaws.com/chat-images/10/x.png");
+		assertThat(response.senderId()).isEqualTo(1L);
+	}
+
+	@Test
+	@DisplayName("참여자가 아닌 memberId는 이미지 전송이 거부되고 업로드는 시도조차 안 한다")
+	void postImageMessage_accessDenied() {
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 1L)).willReturn(Optional.empty());
+		MockMultipartFile file = new MockMultipartFile("file", "cat.png", "image/png", new byte[] {1});
+
+		assertThatThrownBy(() -> chatService.postImageMessage(1L, 10L, file))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException) e).getErrorCode())
+			.isEqualTo(ErrorCode.CHAT_ROOM_ACCESS_DENIED);
+
+		verifyNoInteractions(chatImageUploader);
 	}
 
 	@Test

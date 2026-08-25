@@ -14,6 +14,7 @@ export type ChatMessageResponseType =
 
 export const ChatMessageResponseType = {
   TEXT: 'TEXT',
+  IMAGE: 'IMAGE',
   SYSTEM_JOIN: 'SYSTEM_JOIN',
   SYSTEM_MENU: 'SYSTEM_MENU',
 } as const
