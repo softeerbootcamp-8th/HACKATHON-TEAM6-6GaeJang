@@ -1,5 +1,7 @@
 package com.delipot.auth;
 
+import com.delipot.auth.web.LoginMemberArgumentResolver;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
