@@ -2,7 +2,7 @@ import { useEffect, useRef, type UIEvent } from 'react'
 import { X } from 'lucide-react'
 
 const ITEM_HEIGHT = 56
-const HOURS = Array.from({ length: 24 }, (_, index) => index + 1)
+const HOURS = Array.from({ length: 25 }, (_, index) => index)
 const MINUTES = [0, 30]
 
 type DeadlineSheetProps = {
