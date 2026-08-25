@@ -17,8 +17,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import static org.mockito.Mockito.mock;
+
 import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
+import com.delipot.chat.ChatImageUploader;
 import com.delipot.chat.ChatMessageRepository;
 import com.delipot.chat.ChatRoomMemberRepository;
 import com.delipot.chat.ChatRoomRepository;
@@ -77,7 +80,8 @@ class PotListIntegrationTest {
 		Clock clock = Clock.fixed(NOW, SEOUL);
 		// 채팅도 목으로 대체하지 않는다 — 팟 생성이 실제로 방과 방 멤버 행을 남기는지가 확인 대상이다.
 		ChatService chatService = new ChatService(
-			chatRoomRepository, chatRoomMemberRepository, chatMessageRepository, clock);
+			chatRoomRepository, chatRoomMemberRepository, chatMessageRepository,
+			memberRepository, mock(ChatImageUploader.class), clock);
 		potService = new PotService(
 			potRepository, potMemberRepository, new MemberService(memberRepository), chatService, clock);
 

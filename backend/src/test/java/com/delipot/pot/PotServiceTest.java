@@ -101,7 +101,7 @@ class PotServiceTest {
 	private void givenSaveEchoes() {
 		given(potRepository.save(any(Pot.class))).willAnswer(invocation -> invocation.getArgument(0));
 		given(chatService.createRoom(any(), any(ChatRoomCreateRequest.class)))
-			.willReturn(new ChatRoomResponse(CHAT_ROOM_ID, "호백반점", CURRENT));
+			.willReturn(new ChatRoomResponse(CHAT_ROOM_ID, "호백반점", null, CURRENT));
 	}
 
 	private PotMember capturedPotMember() {

@@ -18,6 +18,7 @@ import com.delipot.global.error.ErrorCode;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * REST({@link ChatController})와 별개로 실시간 송수신만 담당하는 STOMP 핸들러.
@@ -25,6 +26,7 @@ import lombok.RequiredArgsConstructor;
  * 클라이언트 SEND: /app/rooms/{roomId}/messages
  * 서버 브로드캐스트: /topic/rooms/{roomId}
  */
+@Slf4j
 @Controller
 @RequiredArgsConstructor
 public class ChatStompController {
@@ -45,11 +47,13 @@ public class ChatStompController {
 
 	@MessageExceptionHandler(BusinessException.class)
 	public void handleBusinessException(BusinessException ex, SimpMessageHeaderAccessor accessor) {
+		log.warn("STOMP 도메인 예외: {} - {}", ex.getErrorCode(), ex.getMessage());
 		sendError(accessor.getSessionId(), ex.getErrorCode().name(), ex.getMessage());
 	}
 
 	@MessageExceptionHandler(Exception.class)
 	public void handleException(Exception ex, SimpMessageHeaderAccessor accessor) {
+		log.error("STOMP 메시지 처리 실패", ex);
 		sendError(accessor.getSessionId(), ErrorCode.INVALID_INPUT.name(), "메시지를 전송할 수 없습니다.");
 	}
 
