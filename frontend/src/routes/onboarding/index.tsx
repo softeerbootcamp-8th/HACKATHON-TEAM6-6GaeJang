@@ -2,12 +2,14 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { useSignup } from '@/api/generated/auth/auth'
+import { redirectIfAuthenticated } from '@/lib/authGuard'
 import { unformatPhoneNumber } from '@/lib/phoneFormatter'
 import { AccountInfoStep } from './-components/AccountInfoStep'
 import { AddressSetupStep } from './-components/AddressSetupStep'
 import type { SelectedLocation } from './-components/KakaoMapPicker'
 
 export const Route = createFileRoute('/onboarding/')({
+  beforeLoad: ({ context }) => redirectIfAuthenticated(context.queryClient),
   component: OnboardingPage,
 })
 

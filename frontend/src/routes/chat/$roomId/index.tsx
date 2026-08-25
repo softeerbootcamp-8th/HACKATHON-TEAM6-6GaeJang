@@ -5,12 +5,14 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useMe } from '@/api/generated/auth/auth'
 import { getGetMyRoomsQueryKey, useGetMessages, useMarkRead } from '@/api/generated/chat/chat'
 import type { ApiResponseListChatRoomSummaryResponse, ChatMessageResponse } from '@/api/generated/model'
+import { requireAuth } from '@/lib/authGuard'
 
 import { MessageBubble } from './-components/MessageBubble'
 import { MessageComposer } from './-components/MessageComposer'
 import { useChatSocket } from './-hooks/useChatSocket'
 
 export const Route = createFileRoute('/chat/$roomId/')({
+  beforeLoad: ({ context }) => requireAuth(context.queryClient),
   component: ChatRoomPage,
 })
 

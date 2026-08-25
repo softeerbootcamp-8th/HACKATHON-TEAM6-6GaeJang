@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { useLogin } from '@/api/generated/auth/auth'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { redirectIfAuthenticated } from '@/lib/authGuard'
 import { formatPhoneNumber, unformatPhoneNumber } from '@/lib/phoneFormatter'
 
 export const Route = createFileRoute('/login/')({
+  beforeLoad: ({ context }) => redirectIfAuthenticated(context.queryClient),
   component: LoginPage,
 })
 
