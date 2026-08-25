@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -61,5 +62,13 @@ public class ChatController {
 		@RequestParam(defaultValue = "20") int size
 	) {
 		return ApiResponse.ok(chatService.getMessages(memberId, roomId, before, size));
+	}
+
+	@Operation(summary = "채팅방 읽음 처리", description = "방의 최신 메시지까지 읽음 처리한다(안읽은 개수 초기화).")
+	@RequireAuthenticate
+	@PatchMapping("/{roomId}/read")
+	public ApiResponse<Void> markRead(@LoginMember Long memberId, @PathVariable Long roomId) {
+		chatService.markRoomRead(memberId, roomId);
+		return ApiResponse.ok();
 	}
 }
