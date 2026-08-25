@@ -1,18 +1,9 @@
-import { useEffect, useState } from 'react'
-
 import { useCheckNickname } from '@/api/generated/member/member'
+
+import { useDebouncedValue } from './useDebouncedValue'
 
 /** 닉네임: 한/영/숫자 2~10자. 백엔드 @Pattern 과 동일하게 맞춘다. */
 export const NICKNAME_PATTERN = /^[가-힣a-zA-Z0-9]{2,10}$/
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delayMs)
-    return () => clearTimeout(id)
-  }, [value, delayMs])
-  return debounced
-}
 
 export type NicknameStatus = 'empty' | 'invalid' | 'checking' | 'available' | 'taken'
 
