@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { useSignup } from '@/api/generated/auth/auth'
+import { getMeQueryKey, useSignup } from '@/api/generated/auth/auth'
 import { redirectIfAuthenticated } from '@/lib/authGuard'
 import { unformatPhoneNumber } from '@/lib/phoneFormatter'
 import { AccountInfoStep } from './-components/AccountInfoStep'
@@ -17,6 +18,7 @@ type OnboardingStep = 'account' | 'address'
 
 function OnboardingPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [step, setStep] = useState<OnboardingStep>('account')
 
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -25,8 +27,13 @@ function OnboardingPage() {
 
   const signup = useSignup({
     mutation: {
-      // 가입 성공 = 세션 쿠키 발급 완료 → 홈(/)으로 이동
-      onSuccess: () => void navigate({ to: '/' }),
+      // 가입 성공 = 세션 쿠키 발급 완료 → 홈(/)으로 이동.
+      // me 쿼리 캐시를 갱신하지 않으면 로그아웃 이력이 있는 세션에서 '/'의 requireAuth 가드가
+      // 캐시된 error 상태를 보고 미인증으로 오판해 도로 튕겨낸다.
+      onSuccess: (data) => {
+        queryClient.setQueryData(getMeQueryKey(), data)
+        void navigate({ to: '/' })
+      },
     },
   })
 
