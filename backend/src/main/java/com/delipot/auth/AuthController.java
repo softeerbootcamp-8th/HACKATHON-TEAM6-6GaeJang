@@ -33,6 +33,7 @@ public class AuthController {
 	private final SessionCookieManager cookieManager;
 
 	@Operation(summary = "온보딩 가입", description = "번호/닉네임/주소로 가입하고 세션 쿠키를 발급한다.")
+	@RequireGuest
 	@PostMapping("/signup")
 	public ApiResponse<MemberResponse> signup(
 		@Valid @RequestBody SignupRequest request,
@@ -44,6 +45,7 @@ public class AuthController {
 	}
 
 	@Operation(summary = "로그인", description = "기존 회원 번호로 세션을 재발급한다.")
+	@RequireGuest
 	@PostMapping("/login")
 	public ApiResponse<MemberResponse> login(
 		@Valid @RequestBody LoginRequest request,
