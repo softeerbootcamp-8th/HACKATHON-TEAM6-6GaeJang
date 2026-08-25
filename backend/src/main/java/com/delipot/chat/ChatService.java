@@ -95,6 +95,18 @@ public class ChatService {
 		return new ChatMessagePageResponse(messages, nextCursor, hasNext);
 	}
 
+	/** WebSocket STOMP SEND로 들어온 일반 텍스트 메시지를 저장한다. 방 멤버가 아니면 거부. */
+	@Transactional
+	public ChatMessageResponse postMessage(Long senderId, Long roomId, String content) {
+		ChatRoomMember membership = chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, senderId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_ACCESS_DENIED));
+
+		ChatMessage message = chatMessageRepository.save(
+			ChatMessage.write(membership.getChatRoom(), senderId, content, OffsetDateTime.now(clock))
+		);
+		return toResponse(message);
+	}
+
 	/**
 	 * 배달팟 멤버 가입 시 배달팟 쪽에서 직접 호출하는 내부 API (단일 모놀리식이라 HTTP 없이 서비스 메서드로 노출).
 	 * 닉네임 등 회원 정보는 채팅이 몰라도 되게, 이미 완성된 문구를 호출자가 만들어 넘긴다.
