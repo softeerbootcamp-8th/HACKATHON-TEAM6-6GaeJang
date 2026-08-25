@@ -81,7 +81,7 @@ function ChatRoomPage() {
   }
 
   return (
-    <main aria-label={roomName} className="mx-auto flex h-[calc(100dvh-57px)] max-w-md flex-col">
+    <main aria-label={roomName} className="mx-auto flex h-dvh max-w-md flex-col">
       <header className="flex items-center gap-2 border-b px-4 py-3">
         <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
           ←
