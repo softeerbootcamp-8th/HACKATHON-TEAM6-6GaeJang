@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { useLogin } from '@/api/generated/auth/auth'
+import { getMeQueryKey, useLogin } from '@/api/generated/auth/auth'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { redirectIfAuthenticated } from '@/lib/authGuard'
@@ -14,6 +15,7 @@ export const Route = createFileRoute('/login/')({
 
 function LoginPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [phoneNumber, setPhoneNumber] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
@@ -23,7 +25,12 @@ function LoginPage() {
 
   const login = useLogin({
     mutation: {
-      onSuccess: () => void navigate({ to: '/' }),
+      // 로그아웃 이후 재로그인 시 me 쿼리가 캐시에 status:'error'로 남아있어,
+      // 캐시를 갱신하지 않고 navigate만 하면 '/'의 requireAuth 가드가 미인증으로 오판해 도로 튕겨낸다.
+      onSuccess: (data) => {
+        queryClient.setQueryData(getMeQueryKey(), data)
+        void navigate({ to: '/' })
+      },
     },
   })
 
