@@ -1,16 +1,20 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { redirect } from '@tanstack/react-router'
 
-import { getMeQueryOptions } from '@/api/generated/auth/auth'
+import { getMeQueryKey, getMeQueryOptions } from '@/api/generated/auth/auth'
 
-/** /api/auth/me 로 로그인 여부를 판단한다. 401은 에러로 오므로 미인증으로 간주한다. */
+/**
+ * /api/auth/me 로 로그인 여부를 판단한다. 401은 에러로 오므로 미인증으로 간주한다.
+ * react-query 는 에러 이후에도 직전 성공 데이터를 캐시에 남겨두므로, ensureQueryData 가
+ * 캐시된 값을 그냥 반환해버려도 실제 쿼리 상태가 error 면 로그아웃(미인증)으로 취급한다.
+ */
 async function isAuthenticated(queryClient: QueryClient): Promise<boolean> {
   try {
     await queryClient.ensureQueryData(getMeQueryOptions({ query: { retry: false } }))
-    return true
   } catch {
     return false
   }
+  return queryClient.getQueryState(getMeQueryKey())?.status !== 'error'
 }
 
 /** 비로그인 상태면 /login 으로 보낸다. 보호 라우트의 beforeLoad 에서 사용. */
