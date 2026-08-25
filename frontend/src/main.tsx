@@ -5,7 +5,10 @@ import { QueryClientProvider } from '@tanstack/react-query'
 
 import { routeTree } from './routeTree.gen'
 import { queryClient } from './lib/queryClient'
+import { registerServiceWorker } from './lib/registerServiceWorker'
 import './styles/globals.css'
+
+registerServiceWorker()
 
 const router = createRouter({ routeTree, context: { queryClient } })
 
