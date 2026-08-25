@@ -10,7 +10,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import com.delipot.chat.dto.ChatErrorMessage;
-import com.delipot.chat.dto.ChatMessageResponse;
 import com.delipot.chat.dto.ChatMessageSendRequest;
 import com.delipot.global.config.WebSocketHandshakeInterceptor;
 import com.delipot.global.error.BusinessException;
@@ -41,8 +40,7 @@ public class ChatStompController {
 		SimpMessageHeaderAccessor accessor
 	) {
 		Long senderId = extractMemberId(accessor);
-		ChatMessageResponse response = chatService.postMessage(senderId, roomId, request.content());
-		messagingTemplate.convertAndSend("/topic/rooms/" + roomId, response);
+		chatService.postMessage(senderId, roomId, request.content());
 	}
 
 	@MessageExceptionHandler(BusinessException.class)

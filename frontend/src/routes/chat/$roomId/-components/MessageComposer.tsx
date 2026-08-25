@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { ArrowUp, Paperclip } from 'lucide-react'
+import { ArrowUp, Plus } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -29,23 +29,23 @@ export function MessageComposer({ disabled, onSend, onSendImage }: MessageCompos
 
   return (
     <form onSubmit={handleSubmit} className="flex items-center gap-2 border-t p-3">
-      <div className="border-border flex flex-1 items-center gap-1 rounded-2xl border px-2">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => fileInputRef.current?.click()}
-          aria-label="사진 첨부"
-          className="text-muted-fg hover:text-fg flex size-9 shrink-0 items-center justify-center disabled:opacity-50"
-        >
-          <Paperclip className="size-5" />
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-          className="hidden"
-        />
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => fileInputRef.current?.click()}
+        aria-label="사진 첨부"
+        className="bg-muted text-muted-fg flex size-10 shrink-0 items-center justify-center rounded-full disabled:opacity-50"
+      >
+        <Plus className="size-5" />
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <div className="bg-muted flex flex-1 items-center rounded-full px-4">
         <input
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -53,7 +53,7 @@ export function MessageComposer({ disabled, onSend, onSendImage }: MessageCompos
           maxLength={2000}
           disabled={disabled}
           aria-label="메시지 입력"
-          className="text-fg placeholder:text-muted-fg flex-1 bg-transparent py-2 text-sm outline-none disabled:opacity-50"
+          className="text-fg placeholder:text-muted-fg w-full bg-transparent py-2.5 text-sm outline-none disabled:opacity-50"
         />
       </div>
       <button

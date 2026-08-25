@@ -18,7 +18,11 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** senderId도 ChatRoomMember와 동일한 이유로 plain 컬럼. SYSTEM류 타입은 실제 발신자가 없어 null이다. */
+/**
+ * senderId도 ChatRoomMember와 동일한 이유로 plain 컬럼. SYSTEM_JOIN(입장/완료 공지)은 실제
+ * 발신자가 없어 null이다. SYSTEM_MENU는 다르다 — 화면에서 제출한 사람의 아바타·닉네임을 달고
+ * 일반 메시지처럼(색만 다르게) 보여야 해서 senderId를 채운다.
+ */
 @Entity
 @Table(name = "chat_message")
 @Getter
@@ -74,8 +78,10 @@ public class ChatMessage {
 		return new ChatMessage(chatRoom, MessageType.SYSTEM_JOIN, null, content, null, createdAt);
 	}
 
-	public static ChatMessage systemMenu(ChatRoom chatRoom, String menuContent, int menuPrice, OffsetDateTime createdAt) {
-		return new ChatMessage(chatRoom, MessageType.SYSTEM_MENU, null, menuContent, menuPrice, createdAt);
+	public static ChatMessage systemMenu(
+		ChatRoom chatRoom, Long senderId, String menuContent, int menuPrice, OffsetDateTime createdAt
+	) {
+		return new ChatMessage(chatRoom, MessageType.SYSTEM_MENU, senderId, menuContent, menuPrice, createdAt);
 	}
 
 	public enum MessageType {

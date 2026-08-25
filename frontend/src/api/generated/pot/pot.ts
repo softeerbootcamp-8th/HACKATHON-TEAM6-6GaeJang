@@ -525,6 +525,128 @@ export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = E
 }
 
 /**
+ * 채팅방 헤더/배너가 potId 없이 roomId만 가진 경우를 위한 역조회다. 필드·계좌 노출 정책은 GET /api/pots/{potId}와 동일하다. 배달팟에서 만들지 않은 채팅방이거나 아직 연동 전인 방이면 404.
+ * @summary 채팅방 기준 팟 상세 조회
+ */
+export const getPotByChatRoom = (
+  chatRoomId: number,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ApiResponsePotDetailResponse>(
+    { url: `/api/pots/by-chat-room/${chatRoomId}`, method: 'GET', signal },
+    options,
+  )
+}
+
+export const getGetPotByChatRoomQueryKey = (chatRoomId: number) => {
+  return [`/api/pots/by-chat-room/${chatRoomId}`] as const
+}
+
+export const getGetPotByChatRoomQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPotByChatRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  chatRoomId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPotByChatRoom>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetPotByChatRoomQueryKey(chatRoomId)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPotByChatRoom>>> = ({ signal }) =>
+    getPotByChatRoom(chatRoomId, requestOptions, signal)
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: chatRoomId !== null && chatRoomId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getPotByChatRoom>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+}
+
+export type GetPotByChatRoomQueryResult = NonNullable<Awaited<ReturnType<typeof getPotByChatRoom>>>
+export type GetPotByChatRoomQueryError = ErrorType<unknown>
+
+export function useGetPotByChatRoom<
+  TData = Awaited<ReturnType<typeof getPotByChatRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  chatRoomId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPotByChatRoom>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPotByChatRoom>>,
+          TError,
+          Awaited<ReturnType<typeof getPotByChatRoom>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPotByChatRoom<
+  TData = Awaited<ReturnType<typeof getPotByChatRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  chatRoomId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPotByChatRoom>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPotByChatRoom>>,
+          TError,
+          Awaited<ReturnType<typeof getPotByChatRoom>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPotByChatRoom<
+  TData = Awaited<ReturnType<typeof getPotByChatRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  chatRoomId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPotByChatRoom>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 채팅방 기준 팟 상세 조회
+ */
+
+export function useGetPotByChatRoom<
+  TData = Awaited<ReturnType<typeof getPotByChatRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  chatRoomId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPotByChatRoom>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPotByChatRoomQueryOptions(chatRoomId, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  return withQueryKey(query, queryOptions.queryKey)
+}
+
+/**
  * 채팅방의 '팟 나가기' 버튼. 참여 기록을 지우고 인원을 1 줄인다. 총대는 나갈 수 없다(POT_HOST_CANNOT_LEAVE) — 나눔 완료를 쓴다.
  * @summary 팟 나가기
  */
