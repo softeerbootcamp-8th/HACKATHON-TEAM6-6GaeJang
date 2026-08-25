@@ -11,6 +11,9 @@ import { AddressSetupStep } from '../../-components/address/AddressSetupStep'
 import type { SelectedLocation } from '../../-components/address/KakaoMapPicker'
 import { DeadlineSheet } from './-components/DeadlineSheet'
 
+/** 서버가 요청을 받을 때도 선택한 최소 마감시간이 줄지 않도록 전송 지연만큼 여유를 둔다. */
+const DEADLINE_REQUEST_BUFFER_MS = 15_000
+
 export const Route = createFileRoute('/pots/new/')({
   beforeLoad: ({ context }) => requireAuth(context.queryClient),
   component: NewPotPage,
@@ -75,7 +78,9 @@ function NewPotPage() {
       setErrorMessage('마감 시간을 선택해주세요.')
       return
     }
-    const deadline = new Date(Date.now() + (hours * 60 + minutes) * 60_000).toISOString()
+    const deadline = new Date(
+      Date.now() + (hours * 60 + minutes) * 60_000 + DEADLINE_REQUEST_BUFFER_MS,
+    ).toISOString()
     // 좌표는 반드시 만날 장소의 것이어야 한다 — 회원 집 좌표를 쓰면 홈의 300m 반경 판정이
     // 실제 수령 장소와 어긋나, 근처 사람에게 안 보이거나 먼 사람에게 보인다.
     createPot.mutate({

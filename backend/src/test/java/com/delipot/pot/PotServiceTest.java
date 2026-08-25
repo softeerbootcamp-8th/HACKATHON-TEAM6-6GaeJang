@@ -203,9 +203,9 @@ class PotServiceTest {
 	}
 
 	@Test
-	@DisplayName("마감시간이 10분 이내로 촉박하면 INVALID_INPUT으로 거부한다")
+	@DisplayName("마감시간이 30분 미만으로 촉박하면 INVALID_INPUT으로 거부한다")
 	void rejectsTooSoonDeadline() {
-		assertThatThrownBy(() -> potService().create(HOST_ID, request(CURRENT.plusMinutes(9))))
+		assertThatThrownBy(() -> potService().create(HOST_ID, request(CURRENT.plusMinutes(29))))
 			.isInstanceOf(BusinessException.class)
 			.extracting(e -> ((BusinessException)e).getErrorCode())
 			.isEqualTo(ErrorCode.INVALID_INPUT);
@@ -214,11 +214,11 @@ class PotServiceTest {
 	}
 
 	@Test
-	@DisplayName("마감시간이 정확히 10분 뒤면 경계값으로 허용한다")
+	@DisplayName("마감시간이 정확히 30분 뒤면 경계값으로 허용한다")
 	void allowsExactlyMinimumDeadline() {
 		givenSaveEchoes();
 
-		potService().create(HOST_ID, request(CURRENT.plusMinutes(10)));
+		potService().create(HOST_ID, request(CURRENT.plusMinutes(30)));
 
 		verify(potRepository).save(any(Pot.class));
 	}
@@ -338,7 +338,7 @@ class PotServiceTest {
 	@Test
 	@DisplayName("마감시간이 촉박해 거부되면 참여 기록도 채팅방도 남지 않는다")
 	void rejectedCreateLeavesNothing() {
-		assertThatThrownBy(() -> potService().create(HOST_ID, request(CURRENT.plusMinutes(9))))
+		assertThatThrownBy(() -> potService().create(HOST_ID, request(CURRENT.plusMinutes(29))))
 			.isInstanceOf(BusinessException.class);
 
 		verify(potMemberRepository, never()).save(any());
