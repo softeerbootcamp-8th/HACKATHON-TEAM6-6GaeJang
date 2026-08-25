@@ -1,0 +1,82 @@
+name: sync-generated-api
+
+# 백엔드 API가 바뀐 PR에서, 백엔드를 h2 프로파일로 띄워 /v3/api-docs를 읽고
+# orval로 프론트 타입/훅(frontend/src/api/generated)을 재생성해 PR 브랜치에 커밋해준다.
+# 로컬에서 사람이 수동으로 하던 `pnpm generate:api`를 PR 시점에 자동화한 것뿐,
+# 새 인프라나 별도 서버 없이 기존 명령을 그대로 CI에서 실행한다.
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/sync-generated-api.yml'
+
+permissions:
+  contents: write
+
+# 같은 PR 브랜치에 대해 동시에 두 번 커밋·푸시하면 꼬이므로 한 번에 하나만.
+concurrency:
+  group: sync-generated-api-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    # 1) fork PR은 기본 GITHUB_TOKEN이 쓰기 권한이 없어 push가 실패하므로 같은 저장소 PR만 대상으로 한다.
+    # 2) 이 워크플로우 자신이 push한 커밋으로 다시 트리거되는 무한 루프를 막는다
+    #    (GITHUB_TOKEN으로 push하면 그 push가 만든 이벤트의 actor가 github-actions[bot]으로 찍힌다).
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      # h2 프로파일은 MySQL 없이 스펙만 뽑으려고 이미 있는 프로파일이다(application.yml 주석 참고).
+      - name: Start backend (h2 profile)
+        working-directory: backend
+        run: |
+          SPRING_PROFILES_ACTIVE=h2 nohup ./gradlew bootRun --no-daemon > /tmp/backend.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/v3/api-docs >/dev/null 2>&1; then
+              echo "백엔드 준비 완료 (${i}번째 시도)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "백엔드 기동 실패 — 로그:"
+          cat /tmp/backend.log
+          exit 1
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate API client (orval)
+        run: pnpm -C frontend generate:api
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "delipot-api-sync[bot]"
+          git config user.email "actions-sync-bot@users.noreply.github.com"
+          git checkout -B "${GITHUB_HEAD_REF}"
+          git add frontend/src/api/generated
+          if git diff --cached --quiet; then
+            echo "생성된 API 클라이언트 변경 없음 — 커밋 생략"
+          else
+            git commit -m "chore: sync generated API client (orval)"
+            git push origin "HEAD:${GITHUB_HEAD_REF}"
+          fi
