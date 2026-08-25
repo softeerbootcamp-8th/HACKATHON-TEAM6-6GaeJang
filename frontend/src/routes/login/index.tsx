@@ -62,7 +62,7 @@ function LoginPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* 전화번호 입력 필드 (+82 🇰🇷 고정 접두사) */}
           <div className="flex h-13 items-center rounded-xl border border-border bg-bg px-3.5 transition-colors focus-within:border-primary">
-            <span className="text-muted-fg mr-2 flex select-none items-center text-sm font-medium">
+            <span className="text-muted-fg mr-2 flex shrink-0 select-none items-center whitespace-nowrap text-sm font-medium">
               +82 🇰🇷
             </span>
             <input
