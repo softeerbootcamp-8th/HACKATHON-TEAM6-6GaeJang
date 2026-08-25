@@ -6,15 +6,12 @@
  * OpenAPI spec version: v1
  */
 
-export interface MemberResponse {
-  id?: number
-  phoneNumber?: string
+export interface ProfileUpdateRequest {
+  /** @pattern ^[가-힣a-zA-Z0-9]{2,10}$ */
   nickname?: string
   address?: string
   roadAddress?: string
   jibunAddress?: string
   latitude?: number
   longitude?: number
-  createdAt?: string
-  hostedPotCount?: number
 }

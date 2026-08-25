@@ -19,6 +19,9 @@ export type NicknameStatus = 'empty' | 'invalid' | 'checking' | 'available' | 't
 /**
  * 타이핑마다 서버에 중복확인을 던지되, 디바운스로 호출을 줄인다.
  * 형식이 맞고(디바운스가 안정된) 값에 대해서만 useCheckNickname(query)을 활성화한다.
+ *
+ * 마이페이지 프로필 수정처럼 "본인의 현재 닉네임"은 중복확인 자체를 건너뛰고 싶다면,
+ * 호출부에서 값이 바뀌지 않았을 때 빈 문자열을 넘기면 된다(빈 문자열은 'empty' 상태로 취급된다).
  */
 export function useNicknameAvailability(nickname: string) {
   const formatValid = NICKNAME_PATTERN.test(nickname)

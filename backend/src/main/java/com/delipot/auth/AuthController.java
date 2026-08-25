@@ -1,7 +1,9 @@
 package com.delipot.auth;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +16,7 @@ import com.delipot.auth.web.SessionCookieManager;
 import com.delipot.global.response.ApiResponse;
 import com.delipot.member.MemberService;
 import com.delipot.member.dto.MemberResponse;
+import com.delipot.member.dto.ProfileUpdateRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -68,11 +71,37 @@ public class AuthController {
 		return ApiResponse.ok();
 	}
 
-	@Operation(summary = "내 정보", description = "현재 로그인한 회원 정보를 반환한다.")
+	@Operation(summary = "내 정보", description = "현재 로그인한 회원 정보를 반환한다. 마이페이지의 '총대 N회' 배지를 포함한다.")
 	@RequireAuthenticate
 	@GetMapping("/me")
 	public ApiResponse<MemberResponse> me(@LoginMember Long memberId) {
-		return ApiResponse.ok(MemberResponse.from(memberService.getById(memberId)));
+		return ApiResponse.ok(authService.me(memberId));
+	}
+
+	@Operation(summary = "프로필 수정", description = "닉네임/주소를 변경한다. 보내지 않은 필드는 그대로 둔다.")
+	@RequireAuthenticate
+	@PatchMapping("/me")
+	public ApiResponse<MemberResponse> updateProfile(
+		@LoginMember Long memberId,
+		@Valid @RequestBody ProfileUpdateRequest request
+	) {
+		return ApiResponse.ok(MemberResponse.from(memberService.updateProfile(memberId, request)));
+	}
+
+	@Operation(summary = "회원 탈퇴", description = "총대로 있는 진행 중인 팟이 있으면 탈퇴할 수 없다. 참여 중인 팟은 자동으로 나가기 처리된다.")
+	@RequireAuthenticate
+	@DeleteMapping("/me")
+	public ApiResponse<Void> withdraw(
+		@LoginMember Long memberId,
+		HttpServletRequest request,
+		HttpServletResponse response
+	) {
+		String sessionId = cookieManager.resolveSessionId(request).orElse(null);
+		String rememberMe = cookieManager.resolveRememberMe(request).orElse(null);
+		authService.withdraw(memberId, sessionId, rememberMe);
+		response.addHeader(HttpHeaders.SET_COOKIE, cookieManager.expire().toString());
+		response.addHeader(HttpHeaders.SET_COOKIE, cookieManager.expireRememberMe().toString());
+		return ApiResponse.ok();
 	}
 
 	/**

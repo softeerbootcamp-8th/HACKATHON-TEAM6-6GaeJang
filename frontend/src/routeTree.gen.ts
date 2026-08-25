@@ -12,8 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
+import { Route as MyIndexRouteImport } from './routes/my/index'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as ChatRoomIdIndexRouteImport } from './routes/chat/$roomId/index'
+import { Route as MyEditIndexRouteImport } from './routes/my/edit/index'
 import { Route as PotsPotIdIndexRouteImport } from './routes/pots/$potId/index'
 import { Route as PotsNewIndexRouteImport } from './routes/pots/new/index'
 
@@ -32,6 +34,11 @@ const LoginIndexRoute = LoginIndexRouteImport.update({
   path: '/login/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MyIndexRoute = MyIndexRouteImport.update({
+  id: '/my/',
+  path: '/my/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
   id: '/onboarding/',
   path: '/onboarding/',
@@ -40,6 +47,11 @@ const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
 const ChatRoomIdIndexRoute = ChatRoomIdIndexRouteImport.update({
   id: '/chat/$roomId/',
   path: '/chat/$roomId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyEditIndexRoute = MyEditIndexRouteImport.update({
+  id: '/my/edit/',
+  path: '/my/edit/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PotsPotIdIndexRoute = PotsPotIdIndexRouteImport.update({
@@ -57,8 +69,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chat/': typeof ChatIndexRoute
   '/login/': typeof LoginIndexRoute
+  '/my/': typeof MyIndexRoute
   '/onboarding/': typeof OnboardingIndexRoute
   '/chat/$roomId/': typeof ChatRoomIdIndexRoute
+  '/my/edit/': typeof MyEditIndexRoute
   '/pots/$potId/': typeof PotsPotIdIndexRoute
   '/pots/new/': typeof PotsNewIndexRoute
 }
@@ -66,8 +80,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chat': typeof ChatIndexRoute
   '/login': typeof LoginIndexRoute
+  '/my': typeof MyIndexRoute
   '/onboarding': typeof OnboardingIndexRoute
   '/chat/$roomId': typeof ChatRoomIdIndexRoute
+  '/my/edit': typeof MyEditIndexRoute
   '/pots/$potId': typeof PotsPotIdIndexRoute
   '/pots/new': typeof PotsNewIndexRoute
 }
@@ -76,8 +92,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/chat/': typeof ChatIndexRoute
   '/login/': typeof LoginIndexRoute
+  '/my/': typeof MyIndexRoute
   '/onboarding/': typeof OnboardingIndexRoute
   '/chat/$roomId/': typeof ChatRoomIdIndexRoute
+  '/my/edit/': typeof MyEditIndexRoute
   '/pots/$potId/': typeof PotsPotIdIndexRoute
   '/pots/new/': typeof PotsNewIndexRoute
 }
@@ -87,8 +105,10 @@ export interface FileRouteTypes {
     | '/'
     | '/chat/'
     | '/login/'
+    | '/my/'
     | '/onboarding/'
     | '/chat/$roomId/'
+    | '/my/edit/'
     | '/pots/$potId/'
     | '/pots/new/'
   fileRoutesByTo: FileRoutesByTo
@@ -96,8 +116,10 @@ export interface FileRouteTypes {
     | '/'
     | '/chat'
     | '/login'
+    | '/my'
     | '/onboarding'
     | '/chat/$roomId'
+    | '/my/edit'
     | '/pots/$potId'
     | '/pots/new'
   id:
@@ -105,8 +127,10 @@ export interface FileRouteTypes {
     | '/'
     | '/chat/'
     | '/login/'
+    | '/my/'
     | '/onboarding/'
     | '/chat/$roomId/'
+    | '/my/edit/'
     | '/pots/$potId/'
     | '/pots/new/'
   fileRoutesById: FileRoutesById
@@ -115,8 +139,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatIndexRoute: typeof ChatIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
+  MyIndexRoute: typeof MyIndexRoute
   OnboardingIndexRoute: typeof OnboardingIndexRoute
   ChatRoomIdIndexRoute: typeof ChatRoomIdIndexRoute
+  MyEditIndexRoute: typeof MyEditIndexRoute
   PotsPotIdIndexRoute: typeof PotsPotIdIndexRoute
   PotsNewIndexRoute: typeof PotsNewIndexRoute
 }
@@ -144,6 +170,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/my/': {
+      id: '/my/'
+      path: '/my'
+      fullPath: '/my/'
+      preLoaderRoute: typeof MyIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding/': {
       id: '/onboarding/'
       path: '/onboarding'
@@ -156,6 +189,13 @@ declare module '@tanstack/react-router' {
       path: '/chat/$roomId'
       fullPath: '/chat/$roomId/'
       preLoaderRoute: typeof ChatRoomIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my/edit/': {
+      id: '/my/edit/'
+      path: '/my/edit'
+      fullPath: '/my/edit/'
+      preLoaderRoute: typeof MyEditIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pots/$potId/': {
@@ -179,8 +219,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatIndexRoute: ChatIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
+  MyIndexRoute: MyIndexRoute,
   OnboardingIndexRoute: OnboardingIndexRoute,
   ChatRoomIdIndexRoute: ChatRoomIdIndexRoute,
+  MyEditIndexRoute: MyEditIndexRoute,
   PotsPotIdIndexRoute: PotsPotIdIndexRoute,
   PotsNewIndexRoute: PotsNewIndexRoute,
 }

@@ -269,6 +269,32 @@ public class PotService {
 		pot.complete();
 	}
 
+	/** 마이페이지 "총대 N회" 배지. */
+	@Transactional(readOnly = true)
+	public long countHostedPots(Long memberId) {
+		return potRepository.countByHostId(memberId);
+	}
+
+	/** 회원 탈퇴 검증용 — 총대로 있는 살아있는 팟이 있으면 탈퇴를 막아야 한다. */
+	@Transactional(readOnly = true)
+	public boolean hasActiveHostedPot(Long memberId) {
+		return potRepository.existsByHostIdAndStatus(memberId, PotStatus.ACTIVE);
+	}
+
+	/**
+	 * 회원 탈퇴 시 참여 중인 팟에서 자동으로 나가기 처리한다.
+	 *
+	 * <p>호출 전 {@link #hasActiveHostedPot(Long)}로 총대인 ACTIVE 팟이 없음을 이미 확인했다는
+	 * 전제 하에 동작한다 — 그래서 여기서 찾은 ACTIVE 팟은 전부 참여자로만 속한 팟이고, 기존
+	 * {@link #leave(Long, Long)}를 그대로 재사용해도 {@code POT_HOST_CANNOT_LEAVE}에 걸리지 않는다.
+	 */
+	@Transactional
+	public void leaveAllActivePots(Long memberId) {
+		for (Long potId : potMemberRepository.findActivePotIdsByMemberId(memberId)) {
+			leave(memberId, potId);
+		}
+	}
+
 	/** 전체 배달팟 섹션. 사각형으로 후보를 줄인 뒤 구면 거리로 모서리에 걸친 팟을 걸러낸다. */
 	private List<Pot> findOthersNearby(Member me, Set<Long> myPotIds, String keyword, OffsetDateTime now) {
 		Geo.Box box = Geo.boxAround(me.getLatitude(), me.getLongitude(), SEARCH_RADIUS_METERS);

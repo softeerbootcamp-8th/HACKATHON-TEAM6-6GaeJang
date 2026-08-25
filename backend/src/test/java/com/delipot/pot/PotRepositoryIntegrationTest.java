@@ -100,4 +100,17 @@ class PotRepositoryIntegrationTest {
 
 		assertThat(status).hasToString("ACTIVE");
 	}
+
+	@Test
+	@DisplayName("existsByHostIdAndStatus: 총대인 ACTIVE 팟이 있으면 true, DONE으로 완료하면 false")
+	void existsByHostIdAndStatusReflectsCompletion() {
+		Pot pot = potRepository.saveAndFlush(validPot().hostId(99L).build());
+
+		assertThat(potRepository.existsByHostIdAndStatus(99L, PotStatus.ACTIVE)).isTrue();
+
+		pot.complete();
+		potRepository.saveAndFlush(pot);
+
+		assertThat(potRepository.existsByHostIdAndStatus(99L, PotStatus.ACTIVE)).isFalse();
+	}
 }

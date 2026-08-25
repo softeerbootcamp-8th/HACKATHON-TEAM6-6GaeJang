@@ -33,6 +33,8 @@ public enum ErrorCode {
 	POT_ALREADY_JOINED(HttpStatus.CONFLICT, "이미 참여한 팟입니다."),
 	POT_NOT_JOINED(HttpStatus.CONFLICT, "참여하지 않은 팟입니다."),
 	POT_HOST_CANNOT_LEAVE(HttpStatus.BAD_REQUEST, "총대는 팟을 나갈 수 없습니다. 나눔 완료를 사용해주세요."),
+	// 회원 — 총대인 진행 중인 팟이 있으면 탈퇴를 막는다. 참여자로만 속한 팟은 자동으로 나가기 처리된다.
+	MEMBER_HAS_ACTIVE_POT(HttpStatus.CONFLICT, "진행 중인 배달팟이 있어 탈퇴할 수 없어요."),
 
 	// 500대 — 서버 문제
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");

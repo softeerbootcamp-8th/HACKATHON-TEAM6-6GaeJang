@@ -27,12 +27,17 @@ import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
 import com.delipot.member.Member;
 import com.delipot.member.MemberService;
+import com.delipot.pot.PotService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
+	private static final Long MEMBER_ID = 1L;
+
 	@Mock
 	private MemberService memberService;
+	@Mock
+	private PotService potService;
 	@Mock
 	private SessionStore sessionStore;
 	@Mock
@@ -135,5 +140,33 @@ class AuthServiceTest {
 		authService.logout(null, null);
 
 		verifyNoInteractions(sessionStore, rememberMeStore);
+	}
+
+	@Test
+	@DisplayName("탈퇴: 총대로 있는 진행 중인 팟이 있으면 막고, 아무것도 정리하지 않는다")
+	void withdrawBlockedByActiveHostedPot() {
+		given(potService.hasActiveHostedPot(MEMBER_ID)).willReturn(true);
+
+		assertThatThrownBy(() -> authService.withdraw(MEMBER_ID, "sid", "rid"))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException) e).getErrorCode())
+			.isEqualTo(ErrorCode.MEMBER_HAS_ACTIVE_POT);
+
+		verify(potService, never()).leaveAllActivePots(MEMBER_ID);
+		verify(memberService, never()).withdraw(MEMBER_ID);
+		verifyNoInteractions(sessionStore, rememberMeStore);
+	}
+
+	@Test
+	@DisplayName("탈퇴: 총대인 진행 중 팟이 없으면 참여 중인 팟을 나간 뒤 탈퇴하고 세션을 정리한다")
+	void withdrawSucceeds() {
+		given(potService.hasActiveHostedPot(MEMBER_ID)).willReturn(false);
+
+		authService.withdraw(MEMBER_ID, "sid", "rid");
+
+		verify(potService).leaveAllActivePots(MEMBER_ID);
+		verify(memberService).withdraw(MEMBER_ID);
+		verify(sessionStore).delete("sid");
+		verify(rememberMeStore).delete("rid");
 	}
 }

@@ -24,10 +24,10 @@ export function MobileBottomNav({ active }: MobileBottomNavProps) {
         <MessageCircle className="size-6" strokeWidth={active === 'chat' ? 2.3 : 1.8} />
         <span>채팅</span>
       </Link>
-      <span aria-disabled="true" className={itemClass('my')}>
+      <Link to="/my" className={itemClass('my')}>
         <UserRound className="size-6" strokeWidth={active === 'my' ? 2.3 : 1.8} />
         <span>마이</span>
-      </span>
+      </Link>
     </nav>
   )
 }

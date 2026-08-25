@@ -63,6 +63,10 @@ public class Member {
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	/** null이면 정상 회원. 탈퇴는 row를 지우지 않고 이 값만 세팅하는 soft delete다. */
+	@Column
+	private LocalDateTime withdrawnAt;
+
 	private Member(String phoneNumber, String password, String nickname, String address,
 		String roadAddress, String jibunAddress, BigDecimal latitude, BigDecimal longitude) {
 		this.phoneNumber = phoneNumber;
@@ -86,5 +90,23 @@ public class Member {
 	public static Member register(String phoneNumber, String password, String nickname, String address,
 		String roadAddress, String jibunAddress, BigDecimal latitude, BigDecimal longitude) {
 		return new Member(phoneNumber, password, nickname, address, roadAddress, jibunAddress, latitude, longitude);
+	}
+
+	public void changeNickname(String nickname) {
+		this.nickname = nickname;
+	}
+
+	public void changeAddress(String address, String roadAddress, String jibunAddress,
+		BigDecimal latitude, BigDecimal longitude) {
+		this.address = address;
+		this.roadAddress = roadAddress;
+		this.jibunAddress = jibunAddress;
+		this.latitude = latitude;
+		this.longitude = longitude;
+	}
+
+	/** soft delete. 세션 정리는 호출부(AuthService)가 담당한다. */
+	public void withdraw() {
+		this.withdrawnAt = LocalDateTime.now();
 	}
 }
