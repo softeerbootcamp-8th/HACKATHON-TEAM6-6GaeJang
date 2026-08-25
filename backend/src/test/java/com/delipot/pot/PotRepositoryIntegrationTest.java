@@ -33,7 +33,6 @@ class PotRepositoryIntegrationTest {
 	private Pot.PotBuilder validPot() {
 		return Pot.builder()
 			.hostId(1L)
-			.chatRoomId(1L)
 			.title("역삼역 호백반점 같이 시켜요")
 			.description("짜장면 먹고 싶은데 최소주문금액이 안 채워져요")
 			.storeName("호백반점")

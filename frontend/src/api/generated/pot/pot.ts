@@ -172,7 +172,7 @@ export function useGetPots<
 }
 
 /**
- * 총대가 가게 링크·만날 장소·정원·마감시간·정산 계좌를 넣어 배달팟을 만든다. 총대는 로그인한 회원으로 고정되며 요청 본문으로 지정할 수 없다. 생성 직후 상태는 ACTIVE이고 총대 본인이 첫 참여자로 잡힌다. chatRoomId는 채팅방 연동이 붙기 전까지 null이다.
+ * 총대가 가게 링크·만날 장소·정원·마감시간·정산 계좌를 넣어 배달팟을 만든다. 총대는 로그인한 회원으로 고정되며 요청 본문으로 지정할 수 없다. 생성 직후 상태는 ACTIVE이고 총대 본인이 첫 참여자로 잡힌다. 총대 혼자 있는 채팅방이 함께 만들어지고 그 id가 chatRoomId로 내려간다.
  * @summary 팟 생성
  */
 export const createPot = (
@@ -255,7 +255,7 @@ export const useCreatePot = <TError = ErrorType<unknown>, TContext = unknown>(
   return useMutation(getCreatePotMutationOptions(options), queryClient)
 }
 /**
- * '총대에게 메뉴 전달하기' 버튼. 참여와 메뉴 전달을 한 번에 처리한다 — 참여 기록(메뉴·금액 포함) + 인원 증가가 한 트랜잭션이다. 프론트는 응답의 chatRoomId로 채팅 화면으로 이동한다(채팅방 연동 전까지는 null). 중복 참여는 POT_ALREADY_JOINED, 정원이 찼으면 POT_FULL, 마감시간이 지났거나 나눔이 완료됐으면 POT_NOT_ACTIVE.
+ * '총대에게 메뉴 전달하기' 버튼. 참여와 메뉴 전달을 한 번에 처리한다 — 참여 기록(메뉴·금액 포함) + 인원 증가가 한 트랜잭션이다. 프론트는 응답의 chatRoomId로 채팅 화면으로 이동한다. 중복 참여는 POT_ALREADY_JOINED, 정원이 찼으면 POT_FULL, 마감시간이 지났거나 나눔이 완료됐으면 POT_NOT_ACTIVE.
  * @summary 팟 참여 (메뉴 전달)
  */
 export const joinPot = (

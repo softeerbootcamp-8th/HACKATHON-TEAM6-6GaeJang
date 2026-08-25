@@ -13,6 +13,9 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.delipot.chat.ChatService;
+import com.delipot.chat.dto.ChatRoomCreateRequest;
+import com.delipot.chat.dto.ChatRoomResponse;
 import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
 import com.delipot.member.Member;
@@ -63,13 +66,22 @@ public class PotService {
 	private final PotRepository potRepository;
 	private final PotMemberRepository potMemberRepository;
 	private final MemberService memberService;
+	private final ChatService chatService;
 	private final Clock clock;
 
 	/**
-	 * 팟 생성. 총대를 첫 참여자로 함께 기록한다.
+	 * 팟 생성. 총대를 첫 참여자로 기록하고, 총대 혼자 있는 채팅방을 함께 만든다.
 	 *
-	 * <p>채팅방은 만들지 않는다 — 채팅방 생성/입장은 채팅 담당자 작업이라 이 도메인에서 건드리지 않는다.
-	 * {@code chatRoomId}는 채팅 쪽이 붙을 때 채워질 자리로 비워둔다.
+	 * <p>방 생성이 같은 트랜잭션인 이유는 방 없는 팟이 남으면 복구 경로가 없어서다 — 참여자가
+	 * "메뉴 전달하기"를 눌렀을 때 들어갈 방이 없고, 총대에게 방을 다시 만들 화면도 없다.
+	 * 방 생성이 실패하면 팟도 만들어지지 않는 것이 낫다(총대는 다시 누르면 된다).
+	 *
+	 * <p>참여자 입장·메뉴 게시는 아직 붙지 않았다. {@code ChatService}에 기존 방으로
+	 * 멤버 하나를 넣는 메서드가 없어서다(방 생성 시 전원을 받는 형태만 있다).
+	 *
+	 * <p>의존 방향은 팟 → 채팅 단방향으로 유지한다. 채팅이 팟을 부르면 순환 참조가 되어
+	 * 빈 생성 단계에서 실패한다. 채팅방에서 팟 정보가 필요하면 {@code Pot.chatRoomId}를
+	 * 거꾸로 타는 조회를 팟 쪽에 열어준다.
 	 */
 	@Transactional
 	public PotCreateResponse create(Long hostId, PotCreateRequest request) {
@@ -93,6 +105,11 @@ public class PotService {
 			.build());
 
 		potMemberRepository.save(PotMember.host(pot.getId(), hostId, OffsetDateTime.now(clock)));
+
+		// 방 이름은 가게명. 채팅 목록에서 어느 팟의 방인지 알아볼 수 있는 유일한 단서다.
+		ChatRoomResponse room = chatService.createRoom(
+			hostId, new ChatRoomCreateRequest(pot.getStoreName(), List.of(hostId)));
+		pot.linkChatRoom(room.id());
 
 		return PotCreateResponse.from(pot);
 	}
@@ -152,8 +169,9 @@ public class PotService {
 	 * 보내는 API를 두지 않는 이유는 화면이 한 버튼("총대에게 메뉴 전달하기")으로 둘을 동시에 하기
 	 * 때문이다 — 나누면 참여는 됐는데 메뉴는 없는 중간 상태가 생긴다.
 	 *
-	 * <p>메뉴를 채팅방에 게시하지는 않는다. 채팅은 담당자 작업이라 이 도메인에서 건드리지 않고,
-	 * 응답의 {@code chatRoomId}는 채팅 쪽이 붙을 때 채워질 자리다(지금은 null).
+	 * <p>아직 채팅방 입장과 메뉴 게시는 하지 않는다. {@code ChatService}에 기존 방에 멤버 하나를
+	 * 넣는 메서드가 없어서 참여자가 방 멤버가 되지 못한다(붙으면 이 두 줄 다음이 그 자리다).
+	 * 응답의 {@code chatRoomId}는 팟 생성 때 채워지므로 이미 유효한 방 id다.
 	 *
 	 * <p>정원 초과를 막는 건 두 겹이다. 여기서 {@link Pot#isFull()}로 먼저 걸러내고,
 	 * 두 사람이 같은 순간에 마지막 자리를 노렸을 때는 {@code Pot.version} 낙관적 락이 막는다

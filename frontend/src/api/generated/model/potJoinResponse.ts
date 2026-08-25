@@ -12,7 +12,7 @@
 export interface PotJoinResponse {
   /** 참여한 팟 ID */
   potId?: number
-  /** 이동할 채팅방 ID. 채팅방 연동 전까지 null */
+  /** 이동할 채팅방 ID. 채팅 연동 이전에 만들어진 팟만 null */
   chatRoomId?: number
   /** 참여 후 인원 */
   currentMemberCount?: number
