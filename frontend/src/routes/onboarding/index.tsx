@@ -49,7 +49,7 @@ function OnboardingPage() {
   }
 
   return (
-    <main aria-label="온보딩" className="mx-auto min-h-dvh max-w-md bg-bg">
+    <main aria-label="온보딩" className="bg-bg mx-auto min-h-dvh max-w-[393px] shadow-xl">
       {step === 'account' && (
         <>
           <AccountInfoStep

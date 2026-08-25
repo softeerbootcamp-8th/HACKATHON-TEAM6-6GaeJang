@@ -78,7 +78,7 @@ function ChatRoomPage() {
 
   if (me.isPending) {
     return (
-      <main aria-label="채팅방" className="mx-auto max-w-md px-4 py-6">
+      <main aria-label="채팅방" className="mx-auto max-w-[393px] px-4 py-6">
         <p className="text-muted-fg text-sm">로그인 상태 확인 중…</p>
       </main>
     )
@@ -86,7 +86,7 @@ function ChatRoomPage() {
 
   if (!member) {
     return (
-      <main aria-label="채팅방" className="mx-auto max-w-md px-4 py-6">
+      <main aria-label="채팅방" className="mx-auto max-w-[393px] px-4 py-6">
         <p className="text-muted-fg text-sm">
           로그인이 필요해요.{' '}
           <Link to="/login" className="text-primary underline">
@@ -103,7 +103,7 @@ function ChatRoomPage() {
   const subtitle = [memberCount != null ? `멤버 ${memberCount}명` : null, location].filter(Boolean).join(' · ')
 
   return (
-    <main aria-label={roomName} className="mx-auto flex h-dvh max-w-md flex-col">
+    <main aria-label={roomName} className="bg-bg mx-auto flex h-dvh max-w-[393px] flex-col shadow-xl">
       <header className="flex items-center gap-2 border-b px-4 py-3">
         <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
           ←

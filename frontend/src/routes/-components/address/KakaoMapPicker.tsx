@@ -174,7 +174,8 @@ export function KakaoMapPicker({
   }
 
   return (
-    <div className="relative flex h-dvh w-full max-w-md flex-col bg-bg">
+    // 폭 기준은 AddressSetupStep과 같아야 한다 — 주소 검색에서 지도로 넘어갈 때 화면이 흔들린다.
+    <div className="bg-bg relative mx-auto flex h-dvh w-full max-w-[393px] flex-col shadow-xl">
       {/* 헤더 */}
       <header className="relative z-20 flex h-14 items-center justify-between border-b border-border bg-bg/95 px-4 backdrop-blur-xs">
         <button

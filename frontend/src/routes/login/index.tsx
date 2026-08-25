@@ -43,7 +43,7 @@ function LoginPage() {
   return (
     <main
       aria-label="로그인"
-      className="mx-auto flex min-h-dvh max-w-md flex-col justify-between bg-bg px-6 py-10"
+      className="bg-bg mx-auto flex min-h-dvh max-w-[393px] flex-col justify-between px-6 py-10 shadow-xl"
     >
       <div className="flex flex-col">
         {/* 상단 로고 */}

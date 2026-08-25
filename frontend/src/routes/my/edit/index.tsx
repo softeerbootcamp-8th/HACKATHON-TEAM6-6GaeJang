@@ -85,7 +85,7 @@ function ProfileEditPage() {
   }
 
   return (
-    <main aria-label="프로필 수정" className="mx-auto flex min-h-dvh max-w-md flex-col bg-bg">
+    <main aria-label="프로필 수정" className="bg-bg mx-auto flex min-h-dvh max-w-[393px] flex-col shadow-xl">
       <header className="flex h-14 items-center justify-between border-b border-border px-4">
         <button
           type="button"
