@@ -11,18 +11,6 @@
  */
 export interface PotListRequest {
   /**
-   * 내 인증 주소의 위도
-   * @minimum -90
-   * @maximum 90
-   */
-  latitude: number
-  /**
-   * 내 인증 주소의 경도
-   * @minimum -180
-   * @maximum 180
-   */
-  longitude: number
-  /**
    * 가게 이름 검색어. 비우면 전체
    * @minLength 0
    * @maxLength 100

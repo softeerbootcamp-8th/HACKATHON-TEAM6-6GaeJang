@@ -13,8 +13,6 @@ export type PotCreateResponseStatus =
   (typeof PotCreateResponseStatus)[keyof typeof PotCreateResponseStatus]
 
 export const PotCreateResponseStatus = {
-  RECRUITING: 'RECRUITING',
-  CLOSED: 'CLOSED',
-  ORDERED: 'ORDERED',
+  ACTIVE: 'ACTIVE',
   DONE: 'DONE',
 } as const

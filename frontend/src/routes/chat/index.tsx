@@ -2,10 +2,12 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 
 import { useMe } from '@/api/generated/auth/auth'
 import { useGetMyRooms } from '@/api/generated/chat/chat'
+import { requireAuth } from '@/lib/authGuard'
 
 import { ChatRoomListItem } from './-components/ChatRoomListItem'
 
 export const Route = createFileRoute('/chat/')({
+  beforeLoad: ({ context }) => requireAuth(context.queryClient),
   component: ChatRoomListPage,
 })
 

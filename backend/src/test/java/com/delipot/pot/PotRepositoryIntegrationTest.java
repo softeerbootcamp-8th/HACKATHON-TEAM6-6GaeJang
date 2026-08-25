@@ -59,7 +59,7 @@ class PotRepositoryIntegrationTest {
 		assertThat(found.getId()).isNotNull();
 		assertThat(found.getCreatedAt()).isNotNull();
 		assertThat(found.getVersion()).isZero();
-		assertThat(found.getStatus()).isEqualTo(PotStatus.RECRUITING);
+		assertThat(found.getStatus()).isEqualTo(PotStatus.ACTIVE);
 		assertThat(found.getCurrentMemberCount()).isEqualTo(1);
 	}
 
@@ -98,6 +98,6 @@ class PotRepositoryIntegrationTest {
 			.setParameter("id", saved.getId())
 			.getSingleResult();
 
-		assertThat(status).hasToString("RECRUITING");
+		assertThat(status).hasToString("ACTIVE");
 	}
 }

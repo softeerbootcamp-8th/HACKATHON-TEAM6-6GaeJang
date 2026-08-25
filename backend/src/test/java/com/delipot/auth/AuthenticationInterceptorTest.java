@@ -26,10 +26,14 @@ class AuthenticationInterceptorTest {
 		AuthContext.clear();
 	}
 
-	/** @RequireAuthenticate 유무를 확인하기 위한 더미 핸들러. */
+	/** @RequireAuthenticate / @RequireGuest 유무를 확인하기 위한 더미 핸들러. */
 	static class DummyController {
 		@RequireAuthenticate
 		public void secured() {
+		}
+
+		@RequireGuest
+		public void guestOnly() {
 		}
 
 		public void open() {
@@ -61,6 +65,23 @@ class AuthenticationInterceptorTest {
 	@DisplayName("애노테이션 없는 메서드는 미인증이어도 통과")
 	void openMethodPasses() throws Exception {
 		assertThat(interceptor.preHandle(request, response, handler("open"))).isTrue();
+	}
+
+	@Test
+	@DisplayName("@RequireGuest + 미인증 → 통과")
+	void guestOnlyUnauthenticated() throws Exception {
+		assertThat(interceptor.preHandle(request, response, handler("guestOnly"))).isTrue();
+	}
+
+	@Test
+	@DisplayName("@RequireGuest + 인증됨 → ALREADY_AUTHENTICATED")
+	void guestOnlyAuthenticated() throws Exception {
+		AuthContext.setMemberId(1L);
+
+		assertThatThrownBy(() -> interceptor.preHandle(request, response, handler("guestOnly")))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException) e).getErrorCode())
+			.isEqualTo(ErrorCode.ALREADY_AUTHENTICATED);
 	}
 
 	@Test

@@ -1,8 +1,10 @@
 package com.delipot.pot;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -15,13 +17,28 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import static org.mockito.Mockito.mock;
+
+import com.delipot.global.error.BusinessException;
+import com.delipot.global.error.ErrorCode;
+import com.delipot.chat.ChatImageUploader;
+import com.delipot.chat.ChatMessageRepository;
+import com.delipot.chat.ChatRoomMemberRepository;
+import com.delipot.chat.ChatRoomRepository;
+import com.delipot.chat.ChatService;
+import com.delipot.member.Member;
+import com.delipot.member.MemberRepository;
+import com.delipot.member.MemberService;
 import com.delipot.pot.dto.PotListRequest;
 import com.delipot.pot.dto.PotListResponse;
 import com.delipot.pot.dto.PotSummaryResponse;
 
 /**
- * JPQL 필터와 구면 거리 재검증이 실제 DB에서 함께 동작하는지 본다.
- * 서비스만 목으로 테스트하면 쿼리 조건이 틀려도 통과하므로 여기서 같이 확인한다.
+ * 세 섹션 분류와 반경 필터가 실제 DB에서 함께 동작하는지 본다.
+ * 서비스만 목으로 테스트하면 JPQL 조건이 틀려도 통과하므로 여기서 같이 확인한다.
+ *
+ * <p>{@code @DataJpaTest}에는 서비스 빈이 없어 리포지토리만 주입받아 서비스를 직접 조립한다.
+ * 목으로 대체하지 않는 이유는 검증 대상이 바로 그 쿼리들이기 때문이다.
  */
 @DataJpaTest
 @ActiveProfiles("h2")
@@ -39,21 +56,50 @@ class PotListIntegrationTest {
 	@Autowired
 	private PotRepository potRepository;
 
+	@Autowired
+	private PotMemberRepository potMemberRepository;
+
+	@Autowired
+	private MemberRepository memberRepository;
+
+	@Autowired
+	private ChatRoomRepository chatRoomRepository;
+
+	@Autowired
+	private ChatRoomMemberRepository chatRoomMemberRepository;
+
+	@Autowired
+	private ChatMessageRepository chatMessageRepository;
+
 	private PotService potService;
+	private Long meId;
+	private Long strangerId;
 
 	@BeforeEach
 	void setUp() {
-		potService = new PotService(potRepository, Clock.fixed(NOW, SEOUL));
+		Clock clock = Clock.fixed(NOW, SEOUL);
+		// 채팅도 목으로 대체하지 않는다 — 팟 생성이 실제로 방과 방 멤버 행을 남기는지가 확인 대상이다.
+		ChatService chatService = new ChatService(
+			chatRoomRepository, chatRoomMemberRepository, chatMessageRepository,
+			memberRepository, mock(ChatImageUploader.class), clock);
+		potService = new PotService(
+			potRepository, potMemberRepository, new MemberService(memberRepository), chatService, clock);
+
+		meId = memberRepository.save(Member.register(
+			"01011112222", "hash", "나", "서울시 강남구 학동로 171", null, null, MY_LAT, MY_LNG)).getId();
+		strangerId = memberRepository.save(Member.register(
+			"01033334444", "hash", "남", "서울시 강남구 학동로 171", null, null, MY_LAT, MY_LNG)).getId();
 	}
 
 	/** 정북으로 지정한 미터만큼 떨어진 좌표. 위도 1도 ≈ 111,320m. */
 	private static BigDecimal latitudeOffsetBy(int meters) {
-		return MY_LAT.add(BigDecimal.valueOf(meters / 111_320.0).setScale(7, java.math.RoundingMode.HALF_UP));
+		return MY_LAT.add(BigDecimal.valueOf(meters / 111_320.0).setScale(7, RoundingMode.HALF_UP));
 	}
 
-	private Pot.PotBuilder pot(String storeName, BigDecimal latitude, OffsetDateTime deadline) {
-		return Pot.builder()
-			.hostId(1L)
+	/** 팟 하나를 저장한다. 총대 참여 기록까지 직접 심어 서비스의 create 경로와 같은 상태로 맞춘다. */
+	private Pot savePot(Long hostId, String storeName, BigDecimal latitude, OffsetDateTime deadline) {
+		Pot pot = potRepository.save(Pot.builder()
+			.hostId(hostId)
 			.title(storeName + " 같이 시켜요")
 			.description("저녁에 같이 시키실 분 구해요")
 			.storeName(storeName)
@@ -66,195 +112,369 @@ class PotListIntegrationTest {
 			.deadline(deadline)
 			.bankName("카카오뱅크")
 			.accountNumber("3333-01-1234567")
-			.accountHolder("김하나");
+			.accountHolder("김하나")
+			.build());
+
+		potMemberRepository.save(PotMember.host(pot.getId(), hostId, CURRENT));
+		return pot;
+	}
+
+	private com.delipot.pot.dto.PotJoinRequest menuRequest() {
+		return new com.delipot.pot.dto.PotJoinRequest("허니콤보 세트 (순살로 변경) + 콜라 제로 500ml", 12000);
 	}
 
 	private PotListResponse search(String keyword) {
-		return potService.findNearby(new PotListRequest(MY_LAT, MY_LNG, keyword));
+		return potService.findPots(meId, new PotListRequest(keyword));
 	}
 
+	private static java.util.List<String> storeNames(java.util.List<PotSummaryResponse> cards) {
+		return cards.stream().map(PotSummaryResponse::storeName).toList();
+	}
+
+	// ---------- 전체 배달팟 (반경) ----------
+
 	@Test
-	@DisplayName("300m 이내 팟만 나오고 밖은 걸러진다")
+	@DisplayName("300m 이내 팟만 전체 목록에 나오고 밖은 걸러진다")
 	void filtersByRadius() {
-		potRepository.save(pot("교촌 치킨 연남점", latitudeOffsetBy(100), CURRENT.plusHours(1)).build());
-		potRepository.save(pot("호백반점", latitudeOffsetBy(280), CURRENT.plusHours(2)).build());
-		potRepository.save(pot("먼가게", latitudeOffsetBy(500), CURRENT.plusHours(3)).build());
-		potRepository.flush();
+		savePot(strangerId, "교촌 치킨 연남점", latitudeOffsetBy(100), CURRENT.plusHours(1));
+		savePot(strangerId, "호백반점", latitudeOffsetBy(280), CURRENT.plusHours(2));
+		savePot(strangerId, "먼집", latitudeOffsetBy(500), CURRENT.plusHours(3));
 
-		PotListResponse response = search(null);
-
-		assertThat(response.pots()).extracting(PotSummaryResponse::storeName)
+		assertThat(storeNames(search(null).all()))
 			.containsExactly("교촌 치킨 연남점", "호백반점");
 	}
 
+	@Test
+	@DisplayName("전체 목록은 마감 임박순이다")
+	void sortsByDeadline() {
+		savePot(strangerId, "늦게마감", latitudeOffsetBy(50), CURRENT.plusHours(3));
+		savePot(strangerId, "빨리마감", latitudeOffsetBy(50), CURRENT.plusHours(1));
+
+		assertThat(storeNames(search(null).all())).containsExactly("빨리마감", "늦게마감");
+	}
+
+	@Test
+	@DisplayName("정원이 찬 팟은 전체 목록에서 빠진다 — 참여할 수 없는 카드다")
+	void excludesFullPots() {
+		Pot full = savePot(strangerId, "정원찬집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+		full.increaseMemberCount();
+		full.increaseMemberCount();
+		full.increaseMemberCount();
+		potRepository.saveAndFlush(full);
+
+		savePot(strangerId, "여유있는집", latitudeOffsetBy(50), CURRENT.plusHours(2));
+
+		assertThat(storeNames(search(null).all())).containsExactly("여유있는집");
+	}
+
+	@Test
+	@DisplayName("가게 이름으로 검색된다")
+	void filtersByKeyword() {
+		savePot(strangerId, "교촌 치킨 연남점", latitudeOffsetBy(50), CURRENT.plusHours(1));
+		savePot(strangerId, "호백반점", latitudeOffsetBy(50), CURRENT.plusHours(2));
+
+		assertThat(storeNames(search("치킨").all())).containsExactly("교촌 치킨 연남점");
+	}
+
+	/** 이스케이프하지 않으면 LIKE 와일드카드로 해석돼 한 글자에 전체가 나온다. */
+	@Test
+	@DisplayName("검색어의 %는 와일드카드가 아니라 문자로 취급된다")
+	void escapesLikeWildcard() {
+		savePot(strangerId, "교촌 치킨 연남점", latitudeOffsetBy(50), CURRENT.plusHours(1));
+
+		assertThat(search("%").all()).isEmpty();
+	}
+
+	// ---------- 세 섹션 분류 ----------
+
+	@Test
+	@DisplayName("내가 총대인 팟은 hosted로, 참여한 팟은 joined로, 나머지는 all로 간다")
+	void splitsIntoThreeSections() {
+		savePot(meId, "내가연집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+
+		Pot joinedPot = savePot(strangerId, "참여한집", latitudeOffsetBy(50), CURRENT.plusHours(2));
+		potMemberRepository.save(PotMember.join(joinedPot.getId(), meId, "허니콤보", 12000, CURRENT));
+		joinedPot.increaseMemberCount();
+		potRepository.saveAndFlush(joinedPot);
+
+		savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(3));
+
+		PotListResponse response = search(null);
+
+		assertThat(storeNames(response.hosted())).containsExactly("내가연집");
+		assertThat(storeNames(response.joined())).containsExactly("참여한집");
+		assertThat(storeNames(response.all())).containsExactly("남의집");
+	}
+
+	@Test
+	@DisplayName("내 팟은 전체 목록에 중복으로 뜨지 않는다")
+	void myPotsAreNotDuplicatedInAll() {
+		savePot(meId, "내가연집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+
+		PotListResponse response = search(null);
+
+		assertThat(storeNames(response.hosted())).containsExactly("내가연집");
+		assertThat(response.all()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("hosted 카드에는 isHost=true와 참여자 닉네임이 실린다")
+	void hostedCardCarriesHostFlagAndMembers() {
+		savePot(meId, "내가연집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+
+		PotSummaryResponse card = search(null).hosted().getFirst();
+
+		assertThat(card.isHost()).isTrue();
+		assertThat(card.members()).extracting("nickname").containsExactly("나");
+		// 이 팟은 레포지토리로 직접 넣어 채팅방을 붙이지 않았다. create()로 만든 팟은 채워진다.
+		assertThat(card.chatRoomId()).isNull();
+	}
+
 	/**
-	 * 사각형은 통과하지만 구면 거리로는 300m를 넘는 대각선 위치.
-	 * 자바 쪽 재검증이 빠지면 이 팟이 목록에 섞인다.
+	 * 팟의 수령 위치는 총대의 등록 주소와 다를 수 있다(회사 근처 팟을 집 주소로 가입한 사람이 만든다).
+	 * 내 섹션에 반경을 걸면 내가 만든 팟이 내 목록에서 사라진다.
 	 */
 	@Test
-	@DisplayName("사각형 모서리에 걸친 팟은 거리 재검증에서 걸러진다")
-	void filtersBoxCornerByRealDistance() {
-		// 북쪽 250m + 동쪽 250m → 직선거리 약 354m
-		BigDecimal cornerLat = latitudeOffsetBy(250);
-		BigDecimal cornerLng = MY_LNG.add(new BigDecimal("0.0028300"));
+	@DisplayName("내가 연 팟은 300m 밖이어도 hosted에 남는다")
+	void hostedIgnoresRadius() {
+		savePot(meId, "먼내팟", latitudeOffsetBy(3000), CURRENT.plusHours(1));
 
-		potRepository.save(pot("모서리가게", cornerLat, CURRENT.plusHours(1)).longitude(cornerLng).build());
-		potRepository.flush();
+		assertThat(storeNames(search(null).hosted())).containsExactly("먼내팟");
+	}
 
-		assertThat(Geo.distanceMeters(MY_LAT, MY_LNG, cornerLat, cornerLng)).isGreaterThan(300.0);
-		assertThat(search(null).pots()).isEmpty();
+	// ---------- 상태 전이 ----------
+
+	/**
+	 * 마감 후가 주문·입금·수령 구간이다. 참여자에게 이 시점에 팟이 사라지면 총대 계좌를 찾을 길이 끊긴다.
+	 * 반대로 참여하지 않은 사람에게는 참여할 수 없는 카드라 보일 이유가 없다.
+	 */
+	@Test
+	@DisplayName("마감시간이 지난 팟은 전체 목록에서만 사라지고 내 섹션에는 남는다")
+	void expiredPotStaysOnlyInMySections() {
+		savePot(meId, "지난내팟", latitudeOffsetBy(50), CURRENT.minusMinutes(1));
+		savePot(strangerId, "지난남의팟", latitudeOffsetBy(50), CURRENT.minusMinutes(1));
+
+		PotListResponse response = search(null);
+
+		assertThat(storeNames(response.hosted())).containsExactly("지난내팟");
+		assertThat(response.all()).isEmpty();
+		assertThat(response.hosted().getFirst().status()).isEqualTo(PotStatus.ACTIVE);
 	}
 
 	@Test
-	@DisplayName("마감 임박순으로 정렬된다")
-	void sortsByDeadlineAscending() {
-		potRepository.save(pot("세번째", latitudeOffsetBy(50), CURRENT.plusHours(3)).build());
-		potRepository.save(pot("첫번째", latitudeOffsetBy(50), CURRENT.plusMinutes(30)).build());
-		potRepository.save(pot("두번째", latitudeOffsetBy(50), CURRENT.plusHours(1)).build());
-		potRepository.flush();
+	@DisplayName("나눔 완료한 팟은 내 섹션에서도 사라진다")
+	void donePotDisappearsEverywhere() {
+		Pot mine = savePot(meId, "내가연집", latitudeOffsetBy(50), CURRENT.plusHours(1));
 
-		assertThat(search(null).pots()).extracting(PotSummaryResponse::storeName)
-			.containsExactly("첫번째", "두번째", "세번째");
+		potService.complete(meId, mine.getId());
+
+		PotListResponse response = search(null);
+
+		assertThat(response.hosted()).isEmpty();
+		assertThat(response.joined()).isEmpty();
+		assertThat(response.all()).isEmpty();
+		assertThat(potRepository.findById(mine.getId()).orElseThrow().getStatus())
+			.isEqualTo(PotStatus.DONE);
+	}
+
+	/**
+	 * 총대가 버튼을 안 누르면 참여자 섹션에서 사라질 방법이 없다 — 그 섹션은 마감시간을 보지 않는다.
+	 * 그래서 유예 시간이 지난 팟은 조회 시 서버가 대신 완료 처리한다.
+	 */
+	@Test
+	@DisplayName("마감 후 5시간이 지난 팟은 조회 시 자동으로 나눔 완료된다")
+	void abandonedPotIsAutoCompleted() {
+		Pot mine = savePot(meId, "방치된팟", latitudeOffsetBy(50), CURRENT.minusHours(6));
+
+		PotListResponse response = search(null);
+
+		assertThat(response.hosted()).isEmpty();
+		assertThat(potRepository.findById(mine.getId()).orElseThrow().getStatus())
+			.isEqualTo(PotStatus.DONE);
 	}
 
 	@Test
-	@DisplayName("마감이 지난 팟은 나오지 않는다")
-	void excludesPastDeadline() {
-		potRepository.save(pot("지난팟", latitudeOffsetBy(50), CURRENT.minusMinutes(1)).build());
-		potRepository.save(pot("살아있는팟", latitudeOffsetBy(50), CURRENT.plusMinutes(1)).build());
-		potRepository.flush();
+	@DisplayName("마감 후 5시간이 안 지난 팟은 아직 내 섹션에 남는다 — 주문·입금이 진행 중인 구간이다")
+	void recentlyExpiredPotSurvives() {
+		savePot(meId, "진행중팟", latitudeOffsetBy(50), CURRENT.minusHours(4));
 
-		assertThat(search(null).pots()).extracting(PotSummaryResponse::storeName)
-			.containsExactly("살아있는팟");
+		assertThat(storeNames(search(null).hosted())).containsExactly("진행중팟");
+	}
+
+	// ---------- 참여 / 나가기 ----------
+
+	@Test
+	@DisplayName("참여하면 joined로 옮겨가고 입력한 메뉴가 참여 기록에 남는다")
+	void joinMovesPotIntoJoinedSection() {
+		Pot pot = savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+
+		potService.join(meId, pot.getId(), menuRequest());
+
+		PotListResponse response = search(null);
+		assertThat(storeNames(response.joined())).containsExactly("남의집");
+		assertThat(response.all()).isEmpty();
+		assertThat(response.joined().getFirst().currentMemberCount()).isEqualTo(2);
+		assertThat(potMemberRepository.findByPotIdIn(java.util.List.of(pot.getId())))
+			.filteredOn(pm -> pm.getMemberId().equals(meId))
+			.singleElement()
+			.satisfies(pm -> {
+				assertThat(pm.getMenuContent()).isEqualTo("허니콤보 세트 (순살로 변경) + 콜라 제로 500ml");
+				assertThat(pm.getMenuPrice()).isEqualTo(12000);
+			});
 	}
 
 	@Test
-	@DisplayName("정원이 다 찬 팟은 목록에서 제외된다")
-	void excludesFullPots() {
-		Pot full = potRepository.save(pot("만석가게", latitudeOffsetBy(50), CURRENT.plusHours(1)).capacity(2).build());
-		potRepository.save(pot("여유가게", latitudeOffsetBy(50), CURRENT.plusHours(2)).build());
-		potRepository.flush();
+	@DisplayName("나가면 다시 전체 목록으로 돌아가고 인원도 줄어든다")
+	void leaveMovesPotBackToAll() {
+		Pot pot = savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+		potService.join(meId, pot.getId(), menuRequest());
 
-		// 참여 도메인이 없어 카운트를 직접 올린다. 정원 2에 2명이면 만석이다.
-		potRepository.findById(full.getId()).ifPresent(p -> setMemberCount(p, 2));
-		potRepository.flush();
+		potService.leave(meId, pot.getId());
 
-		assertThat(search(null).pots()).extracting(PotSummaryResponse::storeName)
-			.containsExactly("여유가게");
+		PotListResponse response = search(null);
+		assertThat(response.joined()).isEmpty();
+		assertThat(storeNames(response.all())).containsExactly("남의집");
+		assertThat(response.all().getFirst().currentMemberCount()).isEqualTo(1);
+		assertThat(potMemberRepository.existsByPotIdAndMemberId(pot.getId(), meId)).isFalse();
+	}
+
+	/** 중복 참여를 서비스가 통과시켰을 때의 최종 방어선. 인원 컬럼과 실제 행 수가 어긋나는 걸 막는다. */
+	@Test
+	@DisplayName("같은 사람이 같은 팟에 두 번 참여할 수 없다")
+	void cannotJoinTwice() {
+		Pot pot = savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+		potService.join(meId, pot.getId(), menuRequest());
+
+		assertThatThrownBy(() -> potService.join(meId, pot.getId(), menuRequest()))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_ALREADY_JOINED);
+	}
+
+	// ---------- 생성 ----------
+
+	@Test
+	@DisplayName("팟을 만들면 총대가 참여자로 기록되고 곧바로 내가 연 배달팟에 뜬다")
+	void createRegistersHostAndAppearsInHosted() {
+		var created = potService.create(meId, new com.delipot.pot.dto.PotCreateRequest(
+			"교촌 치킨 연남점 같이 시켜요", "교촌 치킨 연남점",
+			"https://web.coupangeats.com/share?storeId=1", "동진시장 사거리 편의점 앞",
+			MY_LAT, MY_LNG, 4, 20000, CURRENT.plusHours(1), "저녁에 같이 시키실 분",
+			"카카오뱅크", "3333-01-1234567", "김하나"));
+
+		assertThat(potMemberRepository.existsByPotIdAndMemberId(created.potId(), meId)).isTrue();
+		assertThat(storeNames(search(null).hosted())).containsExactly("교촌 치킨 연남점");
+		// 총대 혼자 있는 채팅방이 같은 트랜잭션에서 만들어진다.
+		assertThat(created.chatRoomId()).isNotNull();
+	}
+
+	/**
+	 * 총대가 방 멤버로 들어가 있어야 메시지 조회·전송이 통과한다.
+	 * chatRoomId만 채워두고 멤버십을 빠뜨리면 총대 본인이 자기 방에서 CHAT_ROOM_ACCESS_DENIED를 맞는다.
+	 */
+	@Test
+	@DisplayName("팟을 만들면 가게명으로 된 방이 생기고 총대가 그 방 멤버가 된다")
+	void createOpensChatRoomWithHostAsMember() {
+		var created = potService.create(meId, new com.delipot.pot.dto.PotCreateRequest(
+			"교촌 치킨 연남점 같이 시켜요", "교촌 치킨 연남점",
+			"https://web.coupangeats.com/share?storeId=1", "동진시장 사거리 편의점 앞",
+			MY_LAT, MY_LNG, 4, 20000, CURRENT.plusHours(1), "저녁에 같이 시키실 분",
+			"카카오뱅크", "3333-01-1234567", "김하나"));
+
+		Long roomId = created.chatRoomId();
+		assertThat(chatRoomRepository.findById(roomId)).get()
+			.extracting("name").isEqualTo("교촌 치킨 연남점");
+		assertThat(chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, meId)).isPresent();
+		// 참여자 입장은 아직 붙지 않았다 — 방 멤버는 총대 한 명뿐이다.
+		assertThat(chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, strangerId)).isEmpty();
+	}
+
+	// ---------- 상세 ----------
+
+	@Test
+	@DisplayName("상세는 총대 닉네임과 '총대 N회' 배지 값을 준다")
+	void detailCarriesHostBadge() {
+		savePot(strangerId, "첫팟", latitudeOffsetBy(50), CURRENT.plusHours(1));
+		savePot(strangerId, "둘째팟", latitudeOffsetBy(50), CURRENT.plusHours(2));
+		Pot third = savePot(strangerId, "셋째팟", latitudeOffsetBy(50), CURRENT.plusHours(3));
+
+		var detail = potService.findDetail(meId, third.getId());
+
+		assertThat(detail.hostNickname()).isEqualTo("남");
+		assertThat(detail.hostPotCount()).isEqualTo(3);
+		assertThat(detail.isHost()).isFalse();
+		assertThat(detail.isJoined()).isFalse();
+	}
+
+	/** 상세 화면은 참여 전에도 열려 있다. 계좌를 항상 실으면 참여도 안 한 사람에게 계좌번호가 나간다. */
+	@Test
+	@DisplayName("계좌는 참여자에게만 채워지고 비참여자에게는 null이다")
+	void accountIsOnlyForMembers() {
+		Pot pot = savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+
+		assertThat(potService.findDetail(meId, pot.getId()).account()).isNull();
+
+		potService.join(meId, pot.getId(), menuRequest());
+
+		var joined = potService.findDetail(meId, pot.getId());
+		assertThat(joined.isJoined()).isTrue();
+		assertThat(joined.account().accountNumber()).isEqualTo("3333-01-1234567");
+		assertThat(joined.account().bankName()).isEqualTo("카카오뱅크");
 	}
 
 	@Test
-	@DisplayName("키워드로 가게 이름을 대소문자 구분 없이 거른다")
-	void filtersByKeyword() {
-		potRepository.save(pot("교촌 치킨 연남점", latitudeOffsetBy(50), CURRENT.plusHours(1)).build());
-		potRepository.save(pot("BHC 치킨", latitudeOffsetBy(50), CURRENT.plusHours(2)).build());
-		potRepository.save(pot("호백반점", latitudeOffsetBy(50), CURRENT.plusHours(3)).build());
-		potRepository.flush();
+	@DisplayName("나눔 완료된 팟도 상세는 조회된다 — 채팅방 헤더가 이 API를 쓴다")
+	void detailWorksAfterCompletion() {
+		Pot pot = savePot(meId, "끝난팟", latitudeOffsetBy(50), CURRENT.plusHours(1));
+		potService.complete(meId, pot.getId());
 
-		assertThat(search("치킨").pots()).extracting(PotSummaryResponse::storeName)
-			.containsExactly("교촌 치킨 연남점", "BHC 치킨");
-		assertThat(search("bhc").pots()).extracting(PotSummaryResponse::storeName)
-			.containsExactly("BHC 치킨");
+		var detail = potService.findDetail(meId, pot.getId());
+
+		assertThat(detail.status()).isEqualTo(PotStatus.DONE);
 	}
 
 	@Test
-	@DisplayName("키워드가 빈 문자열이거나 공백뿐이면 전체를 준다")
-	void blankKeywordMeansNoFilter() {
-		potRepository.save(pot("교촌 치킨 연남점", latitudeOffsetBy(50), CURRENT.plusHours(1)).build());
-		potRepository.save(pot("호백반점", latitudeOffsetBy(50), CURRENT.plusHours(2)).build());
-		potRepository.flush();
+	@DisplayName("마감시간이 지나면 상세에 isDeadlinePassed=true — 참여하기 버튼을 막는 근거")
+	void detailFlagsPassedDeadline() {
+		Pot pot = savePot(strangerId, "지난팟", latitudeOffsetBy(50), CURRENT.minusMinutes(1));
 
-		assertThat(search("").pots()).hasSize(2);
-		assertThat(search("   ").pots()).hasSize(2);
-		assertThat(search(null).pots()).hasSize(2);
+		assertThat(potService.findDetail(meId, pot.getId()).isDeadlinePassed()).isTrue();
 	}
 
 	@Test
-	@DisplayName("카드에 필요한 필드가 모두 채워진다")
-	void summaryCarriesCardFields() {
-		potRepository.save(pot("교촌 치킨 연남점", latitudeOffsetBy(100), CURRENT.plusHours(1)).build());
-		potRepository.flush();
+	@DisplayName("마감시간이 지난 팟에는 참여할 수 없다")
+	void cannotJoinAfterDeadline() {
+		Pot pot = savePot(strangerId, "지난팟", latitudeOffsetBy(50), CURRENT.minusMinutes(1));
 
-		PotSummaryResponse card = search(null).pots().getFirst();
-
-		assertThat(card.potId()).isNotNull();
-		assertThat(card.storeName()).isEqualTo("교촌 치킨 연남점");
-		assertThat(card.title()).isEqualTo("교촌 치킨 연남점 같이 시켜요");
-		assertThat(card.meetingPlace()).isEqualTo("동진시장 사거리 편의점 앞");
-		assertThat(card.currentMemberCount()).isEqualTo(1);
-		assertThat(card.capacity()).isEqualTo(4);
-		assertThat(card.deadline()).isEqualTo(CURRENT.plusHours(1));
+		assertThatThrownBy(() -> potService.join(meId, pot.getId(), menuRequest()))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_NOT_ACTIVE);
 	}
 
-	/** 리뷰 지적: 이스케이프가 없으면 % 한 글자에 전체 목록이 나온다. */
-	@Test
-	@DisplayName("검색어의 % 는 와일드카드가 아니라 글자 그대로 취급된다")
-	void escapesLikeWildcards() {
-		potRepository.save(pot("교촌 치킨 연남점", latitudeOffsetBy(50), CURRENT.plusHours(1)).build());
-		potRepository.save(pot("50% 할인마트", latitudeOffsetBy(50), CURRENT.plusHours(2)).build());
-		potRepository.flush();
+	// ---------- 주소 ----------
 
-		// % 한 글자로 전체가 딸려오면 안 된다 — "50% 할인마트" 만 걸려야 한다
-		assertThat(search("%").pots()).extracting(PotSummaryResponse::storeName)
-			.containsExactly("50% 할인마트");
-		assertThat(search("50%").pots()).extracting(PotSummaryResponse::storeName)
-			.containsExactly("50% 할인마트");
+	@Test
+	@DisplayName("주소 좌표가 없는 회원은 ADDRESS_NOT_SET — 검색 기준점이 없으면 조회 자체가 불가능하다")
+	void memberWithoutCoordinatesCannotSearch() {
+		Long noAddressId = memberRepository.save(
+			Member.register("01055556666", "hash", "주소없음", "미입력")).getId();
+
+		assertThatThrownBy(() -> potService.findPots(noAddressId, new PotListRequest(null)))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.ADDRESS_NOT_SET);
 	}
 
 	@Test
-	@DisplayName("검색어의 _ 도 글자 그대로 취급된다")
-	void escapesUnderscoreWildcard() {
-		potRepository.save(pot("교촌 치킨 연남점", latitudeOffsetBy(50), CURRENT.plusHours(1)).build());
-		potRepository.flush();
+	@DisplayName("참여 이력이 전혀 없는 신규 회원도 조회가 된다 — 빈 in절로 죽지 않는다")
+	void brandNewMemberCanSearch() {
+		savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(1));
 
-		// _ 가 와일드카드면 "교촌"의 아무 한 글자에 걸려 결과가 나온다
-		assertThat(search("교_").pots()).isEmpty();
-	}
+		PotListResponse response = search(null);
 
-	@Test
-	@DisplayName("결과가 상한을 넘으면 잘라서 준다")
-	void capsResultCount() {
-		for (int i = 0; i < 105; i++) {
-			potRepository.save(pot("가게" + i, latitudeOffsetBy(50), CURRENT.plusMinutes(30 + i)).build());
-		}
-		potRepository.flush();
-
-		assertThat(search(null).pots()).hasSize(100);
-	}
-
-	@Test
-	@DisplayName("카드에는 정산 계좌·가게 링크가 실리지 않는다")
-	void summaryOmitsSensitiveFields() {
-		potRepository.save(pot("교촌 치킨 연남점", latitudeOffsetBy(100), CURRENT.plusHours(1)).build());
-		potRepository.flush();
-
-		PotSummaryResponse card = search(null).pots().getFirst();
-
-		// record 컴포넌트가 곧 JSON 필드다. 계좌/링크 접근자가 없다는 것이 곧 응답에 없다는 뜻이다.
-		assertThat(PotSummaryResponse.class.getRecordComponents())
-			.extracting(java.lang.reflect.RecordComponent::getName)
-			.containsExactlyInAnyOrder("potId", "title", "storeName", "description",
-				"meetingPlace", "deadline", "currentMemberCount", "capacity");
-		assertThat(card.potId()).isNotNull();
-	}
-
-	@Test
-	@DisplayName("반경 안에 팟이 없으면 빈 목록을 준다 — 404가 아니다")
-	void emptyResultIsNotAnError() {
-		potRepository.save(pot("먼가게", latitudeOffsetBy(900), CURRENT.plusHours(1)).build());
-		potRepository.flush();
-
-		assertThat(search(null).pots()).isEmpty();
-	}
-
-	/** 참여 도메인이 없어 테스트에서만 카운트를 직접 바꾼다. */
-	private static void setMemberCount(Pot pot, int count) {
-		try {
-			var field = Pot.class.getDeclaredField("currentMemberCount");
-			field.setAccessible(true);
-			field.setInt(pot, count);
-		} catch (ReflectiveOperationException e) {
-			throw new IllegalStateException(e);
-		}
+		assertThat(response.hosted()).isEmpty();
+		assertThat(response.joined()).isEmpty();
+		assertThat(storeNames(response.all())).containsExactly("남의집");
 	}
 }

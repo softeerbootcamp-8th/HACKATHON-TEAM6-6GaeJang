@@ -1,8 +1,10 @@
 package com.delipot.pot.dto;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import com.delipot.pot.Pot;
+import com.delipot.pot.PotStatus;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -37,10 +39,22 @@ public record PotSummaryResponse(
 	int currentMemberCount,
 
 	@Schema(description = "모집 정원", example = "4")
-	int capacity
+	int capacity,
+
+	@Schema(description = "팟 상태. 목록에는 ACTIVE만 나온다(DONE은 어느 섹션에도 없다)", example = "ACTIVE")
+	PotStatus status,
+
+	@Schema(description = "내가 이 팟의 총대인지. true면 내용 수정·나눔 완료 버튼을 노출한다", example = "false")
+	boolean isHost,
+
+	@Schema(description = "이 팟의 채팅방 ID. 채팅방 연동 전까지 null", example = "3")
+	Long chatRoomId,
+
+	@Schema(description = "참여자 목록. 카드 우측 아바타로 그린다")
+	List<PotMemberResponse> members
 ) {
 
-	public static PotSummaryResponse from(Pot pot) {
+	public static PotSummaryResponse of(Pot pot, boolean isHost, List<PotMemberResponse> members) {
 		return new PotSummaryResponse(
 			pot.getId(),
 			pot.getTitle(),
@@ -49,7 +63,11 @@ public record PotSummaryResponse(
 			pot.getMeetingPlace(),
 			pot.getDeadline(),
 			pot.getCurrentMemberCount(),
-			pot.getCapacity()
+			pot.getCapacity(),
+			pot.getStatus(),
+			isHost,
+			pot.getChatRoomId(),
+			members
 		);
 	}
 }

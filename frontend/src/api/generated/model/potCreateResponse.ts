@@ -17,6 +17,8 @@ export interface PotCreateResponse {
   status?: PotCreateResponseStatus
   /** 총대 포함 현재 참여 인원 */
   currentMemberCount?: number
+  /** 생성된 채팅방 ID. 총대 혼자 있는 방이 함께 만들어진다 */
+  chatRoomId?: number
   /** 생성 시각 */
   createdAt?: string
 }

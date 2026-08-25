@@ -143,8 +143,8 @@ export function AccountInfoStep({
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-fg text-xs font-semibold">휴대폰 번호</label>
             <div className="flex gap-2">
-              <div className="flex h-13 flex-1 items-center rounded-xl border border-border bg-bg px-3.5 transition-colors focus-within:border-primary">
-                <span className="text-muted-fg mr-2 flex select-none items-center text-sm font-medium">
+              <div className="flex h-13 min-w-0 flex-1 items-center rounded-xl border border-border bg-bg px-3.5 transition-colors focus-within:border-primary">
+                <span className="text-muted-fg mr-2 flex shrink-0 select-none items-center whitespace-nowrap text-sm font-medium">
                   +82 🇰🇷
                 </span>
                 <input
@@ -158,7 +158,7 @@ export function AccountInfoStep({
                     setPhoneError(null)
                     onChangePhoneNumber(formatPhoneNumber(e.target.value))
                   }}
-                  className="flex-1 bg-transparent text-base text-fg outline-none placeholder:text-muted-fg"
+                  className="min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-muted-fg"
                 />
               </div>
               <Button

@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useMe } from '@/api/generated/auth/auth'
 import { getGetMyRoomsQueryKey, useGetMessages, useGetRoom, useMarkRead } from '@/api/generated/chat/chat'
 import type { ChatMessageResponse } from '@/api/generated/model'
+import { requireAuth } from '@/lib/authGuard'
 
 import { DateDivider } from './-components/DateDivider'
 import { MessageBubble } from './-components/MessageBubble'
@@ -13,6 +14,7 @@ import { useChatSocket } from './-hooks/useChatSocket'
 import { useUploadChatImage } from './-hooks/useUploadChatImage'
 
 export const Route = createFileRoute('/chat/$roomId/')({
+  beforeLoad: ({ context }) => requireAuth(context.queryClient),
   component: ChatRoomPage,
 })
 
@@ -101,7 +103,7 @@ function ChatRoomPage() {
   const subtitle = [memberCount != null ? `멤버 ${memberCount}명` : null, location].filter(Boolean).join(' · ')
 
   return (
-    <main aria-label={roomName} className="mx-auto flex h-[calc(100dvh-57px)] max-w-md flex-col">
+    <main aria-label={roomName} className="mx-auto flex h-dvh max-w-md flex-col">
       <header className="flex items-center gap-2 border-b px-4 py-3">
         <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
           ←
