@@ -18,7 +18,12 @@ import type {
   UseQueryResult,
 } from '@tanstack/react-query'
 
-import type { ApiResponseNicknameAvailabilityResponse, CheckNicknameParams } from '../model'
+import type {
+  ApiResponseNicknameAvailabilityResponse,
+  ApiResponsePhoneAvailabilityResponse,
+  CheckNicknameParams,
+  CheckPhoneParams,
+} from '../model'
 
 import { customInstance } from '../../../lib/axios'
 import type { ErrorType } from '../../../lib/axios'
@@ -38,6 +43,125 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
     })
   }
   return result
+}
+
+/**
+ * 온보딩 중 전화번호 인증하기 클릭 시 호출한다. available=true 면 가입 가능.
+ * @summary 전화번호 중복확인
+ */
+export const checkPhone = (
+  params: CheckPhoneParams,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ApiResponsePhoneAvailabilityResponse>(
+    { url: `/api/members/check-phone`, method: 'GET', params, signal },
+    options,
+  )
+}
+
+export const getCheckPhoneQueryKey = (params?: CheckPhoneParams) => {
+  return [`/api/members/check-phone`, ...(params ? [params] : [])] as const
+}
+
+export const getCheckPhoneQueryOptions = <
+  TData = Awaited<ReturnType<typeof checkPhone>>,
+  TError = ErrorType<unknown>,
+>(
+  params: CheckPhoneParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof checkPhone>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getCheckPhoneQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof checkPhone>>> = ({ signal }) =>
+    checkPhone(params, requestOptions, signal)
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof checkPhone>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CheckPhoneQueryResult = NonNullable<Awaited<ReturnType<typeof checkPhone>>>
+export type CheckPhoneQueryError = ErrorType<unknown>
+
+export function useCheckPhone<
+  TData = Awaited<ReturnType<typeof checkPhone>>,
+  TError = ErrorType<unknown>,
+>(
+  params: CheckPhoneParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof checkPhone>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof checkPhone>>,
+          TError,
+          Awaited<ReturnType<typeof checkPhone>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCheckPhone<
+  TData = Awaited<ReturnType<typeof checkPhone>>,
+  TError = ErrorType<unknown>,
+>(
+  params: CheckPhoneParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof checkPhone>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof checkPhone>>,
+          TError,
+          Awaited<ReturnType<typeof checkPhone>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCheckPhone<
+  TData = Awaited<ReturnType<typeof checkPhone>>,
+  TError = ErrorType<unknown>,
+>(
+  params: CheckPhoneParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof checkPhone>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 전화번호 중복확인
+ */
+
+export function useCheckPhone<
+  TData = Awaited<ReturnType<typeof checkPhone>>,
+  TError = ErrorType<unknown>,
+>(
+  params: CheckPhoneParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof checkPhone>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getCheckPhoneQueryOptions(params, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  return withQueryKey(query, queryOptions.queryKey)
 }
 
 /**

@@ -1,5 +1,6 @@
 package com.delipot.member.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import com.delipot.member.Member;
@@ -10,6 +11,10 @@ public record MemberResponse(
 	String phoneNumber,
 	String nickname,
 	String address,
+	String roadAddress,
+	String jibunAddress,
+	BigDecimal latitude,
+	BigDecimal longitude,
 	LocalDateTime createdAt
 ) {
 
@@ -19,6 +24,10 @@ public record MemberResponse(
 			member.getPhoneNumber(),
 			member.getNickname(),
 			member.getAddress(),
+			member.getRoadAddress(),
+			member.getJibunAddress(),
+			member.getLatitude(),
+			member.getLongitude(),
 			member.getCreatedAt()
 		);
 	}

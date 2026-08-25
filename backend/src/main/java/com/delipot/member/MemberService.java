@@ -17,6 +17,11 @@ public class MemberService {
 
 	private final MemberRepository memberRepository;
 
+	/** 온보딩 휴대폰 번호 실시간 중복확인. */
+	public boolean isPhoneNumberAvailable(String phoneNumber) {
+		return !memberRepository.existsByPhoneNumber(phoneNumber);
+	}
+
 	/** 온보딩 닉네임 실시간 중복확인. */
 	public boolean isNicknameAvailable(String nickname) {
 		return !memberRepository.existsByNickname(nickname);
@@ -28,13 +33,20 @@ public class MemberService {
 	 */
 	@Transactional
 	public Member register(String phoneNumber, String passwordHash, String nickname, String address) {
+		return register(phoneNumber, passwordHash, nickname, address, null, null, null, null);
+	}
+
+	@Transactional
+	public Member register(String phoneNumber, String passwordHash, String nickname, String address,
+		String roadAddress, String jibunAddress, java.math.BigDecimal latitude, java.math.BigDecimal longitude) {
 		if (memberRepository.existsByPhoneNumber(phoneNumber)) {
 			throw new BusinessException(ErrorCode.DUPLICATE_PHONE);
 		}
 		if (memberRepository.existsByNickname(nickname)) {
 			throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
 		}
-		return memberRepository.save(Member.register(phoneNumber, passwordHash, nickname, address));
+		return memberRepository.save(
+			Member.register(phoneNumber, passwordHash, nickname, address, roadAddress, jibunAddress, latitude, longitude));
 	}
 
 	public Member getById(Long id) {

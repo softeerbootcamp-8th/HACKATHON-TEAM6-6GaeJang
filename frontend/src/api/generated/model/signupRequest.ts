@@ -9,20 +9,24 @@
 export interface SignupRequest {
   /**
    * @minLength 1
-   * @pattern ^\d{1,11}$
+   * @pattern ^\d{10,11}$
    */
   phoneNumber: string
   /**
-   * @minLength 8
+   * @minLength 1
    * @maxLength 64
    */
   password: string
   /**
    * @minLength 1
-   * @pattern ^[가-힣a-zA-Z]{1,10}$
+   * @pattern ^[가-힣a-zA-Z0-9]{2,10}$
    */
   nickname: string
   /** @minLength 1 */
   address: string
+  roadAddress?: string
+  jibunAddress?: string
+  latitude?: number
+  longitude?: number
   rememberMe?: boolean
 }

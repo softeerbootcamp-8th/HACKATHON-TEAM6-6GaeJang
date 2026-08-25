@@ -6,14 +6,14 @@
  * OpenAPI spec version: v1
  */
 
-export interface MemberResponse {
+/**
+ * 채팅방 생성 응답
+ */
+export interface ChatRoomResponse {
+  /** 채팅방 id */
   id?: number
-  phoneNumber?: string
-  nickname?: string
-  address?: string
-  roadAddress?: string
-  jibunAddress?: string
-  latitude?: number
-  longitude?: number
+  /** 채팅방 이름 */
+  name?: string
+  /** 생성 시각 */
   createdAt?: string
 }

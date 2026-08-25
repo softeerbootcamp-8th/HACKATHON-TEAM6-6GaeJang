@@ -96,9 +96,17 @@ class AuthIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("닉네임 중복확인 / 번호 중복 가입")
+	@DisplayName("닉네임 중복확인 / 번호 중복확인 / 번호 중복 가입")
 	void duplicates() throws Exception {
 		signup("01011110005", "중복이", false);
+
+		mockMvc.perform(get("/api/members/check-phone").param("phoneNumber", "01011110005"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.available").value(false));
+
+		mockMvc.perform(get("/api/members/check-phone").param("phoneNumber", "01099999999"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.available").value(true));
 
 		mockMvc.perform(get("/api/members/check-nickname").param("nickname", "중복이"))
 			.andExpect(status().isOk())
