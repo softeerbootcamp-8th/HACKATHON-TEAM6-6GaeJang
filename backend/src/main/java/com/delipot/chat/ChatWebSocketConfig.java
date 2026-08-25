@@ -43,7 +43,10 @@ public class ChatWebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 	@Override
 	public void configureMessageBroker(MessageBrokerRegistry registry) {
-		registry.enableSimpleBroker("/topic");
+		// /queue는 /topic처럼 방송용이 아니라 convertAndSendToUser(에러 프레임)가 내부적으로
+		// 세션별 목적지(/queue/errors-user<sessionId>)로 리라이트한 메시지를 릴레이하는 데 쓰인다.
+		// 여기 없으면 SimpleBroker가 그 목적지를 프리픽스 불일치로 조용히 버린다(에러 발생 없음).
+		registry.enableSimpleBroker("/topic", "/queue");
 		registry.setApplicationDestinationPrefixes("/app");
 	}
 
