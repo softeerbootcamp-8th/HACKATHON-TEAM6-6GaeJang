@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 
 import { useMe } from '@/api/generated/auth/auth'
-import { useGetMyRooms } from '@/api/generated/chat/chat'
+import { getGetMyRoomsQueryKey, useGetMyRooms } from '@/api/generated/chat/chat'
 import { PotDetailResponseStatus } from '@/api/generated/model'
 import { getGetPotByChatRoomQueryOptions } from '@/api/generated/pot/pot'
 import { requireAuth } from '@/lib/authGuard'
 
 import { MobileBottomNav } from '../-components/MobileBottomNav'
 import { ChatRoomListItem } from './-components/ChatRoomListItem'
+import { useChatRoomsSocket } from './-hooks/useChatRoomsSocket'
 
 export const Route = createFileRoute('/chat/')({
   beforeLoad: ({ context }) => requireAuth(context.queryClient),
@@ -21,8 +22,15 @@ function ChatRoomListPage() {
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
 
+  const queryClient = useQueryClient()
   const rooms = useGetMyRooms({ query: { enabled: !!member } })
   const roomIds = rooms.data?.data?.map((room) => room.roomId).filter((id): id is number => id != null) ?? []
+
+  // 목록 화면에 머무는 동안 어느 방이든 새 메시지가 오면 목록을 다시 받아온다.
+  // 방마다 안읽음 개수·마지막 메시지 미리보기를 프론트가 직접 계산하지 않고 서버 응답을 그대로 신뢰한다.
+  useChatRoomsSocket(roomIds, () => {
+    queryClient.invalidateQueries({ queryKey: getGetMyRoomsQueryKey() })
+  })
 
   // 방마다 연결된 배달팟의 종료 여부를 알아야 리스트를 옅게 표시할 수 있다.
   // 목록 API(GET /api/pots)는 DONE 상태를 아예 안 돌려주므로(문서화된 정책) 방별로 역조회한다.

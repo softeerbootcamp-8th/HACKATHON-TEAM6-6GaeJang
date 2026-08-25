@@ -12,9 +12,8 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * countUnread의 null-safe 비교(IS NULL OR <>)가 실제 DB(H2, MySQL 모드)에서도
- * 의도대로 동작하는지 확인한다 — 파생 쿼리(SenderIdNot)였다면 SQL의 NULL 비교 규칙 때문에
- * senderId가 null인 시스템 메시지가 조용히 안읽음 집계에서 빠지는 회귀가 있었다.
+ * countUnread가 SYSTEM_JOIN(시스템 공지)은 항상 제외하고, SYSTEM_MENU(참여자가 낸 메뉴)는
+ * 대화처럼 그대로 세는지 실제 DB(H2, MySQL 모드)에서 확인한다.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -28,8 +27,8 @@ class ChatMessageRepositoryTest {
 	private ChatMessageRepository chatMessageRepository;
 
 	@Test
-	@DisplayName("senderId가 null인 시스템 메시지도 안읽음 개수에 포함된다")
-	void countUnread_includesSystemMessages() {
+	@DisplayName("SYSTEM_MENU는 안읽음 개수에 포함되지만 SYSTEM_JOIN은 제외된다")
+	void countUnread_includesSystemMenuButExcludesSystemJoin() {
 		ChatRoom room = chatRoomRepository.save(ChatRoom.create("방", OffsetDateTime.now()));
 		chatMessageRepository.save(ChatMessage.write(room, 2L, "안녕", OffsetDateTime.now()));
 		chatMessageRepository.save(ChatMessage.systemJoin(room, "누가 들어왔어요", OffsetDateTime.now()));
@@ -37,7 +36,7 @@ class ChatMessageRepositoryTest {
 
 		long unread = chatMessageRepository.countUnread(room.getId(), 0L, 1L);
 
-		assertThat(unread).isEqualTo(3);
+		assertThat(unread).isEqualTo(2);
 	}
 
 	@Test

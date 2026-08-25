@@ -40,6 +40,19 @@ public interface PotRepository extends JpaRepository<Pot, Long> {
 	int completeAbandoned(@Param("threshold") OffsetDateTime threshold);
 
 	/**
+	 * {@link #completeAbandoned}가 완료 처리할 팟들의 채팅방 id. 벌크 UPDATE는 엔티티를 읽지 않아
+	 * "어느 방에 완료 공지를 남길지" 알 방법이 없으므로, 같은 조건으로 UPDATE 직전에 먼저 조회한다.
+	 * chatRoomId가 없는(채팅 연동 전에 만들어진) 팟은 공지를 남길 방이 없어 뺀다.
+	 */
+	@Query("""
+		select p.chatRoomId from Pot p
+		where p.status = com.delipot.pot.PotStatus.ACTIVE
+		  and p.deadline <= :threshold
+		  and p.chatRoomId is not null
+		""")
+	List<Long> findChatRoomIdsAbandoned(@Param("threshold") OffsetDateTime threshold);
+
+	/**
 	 * "전체 배달팟" 섹션의 후보. 정확한 반경 판정은 서비스에서 구면 거리로 한 번 더 거른다.
 	 *
 	 * <p>native query 대신 JPQL인 이유는 MySQL의 {@code ST_Distance_Sphere}를 쓰면
