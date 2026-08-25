@@ -14,6 +14,8 @@ import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as ChatRoomIdIndexRouteImport } from './routes/chat/$roomId/index'
+import { Route as PotsPotIdIndexRouteImport } from './routes/pots/$potId/index'
+import { Route as PotsNewIndexRouteImport } from './routes/pots/new/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +42,16 @@ const ChatRoomIdIndexRoute = ChatRoomIdIndexRouteImport.update({
   path: '/chat/$roomId/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PotsPotIdIndexRoute = PotsPotIdIndexRouteImport.update({
+  id: '/pots/$potId/',
+  path: '/pots/$potId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PotsNewIndexRoute = PotsNewIndexRouteImport.update({
+  id: '/pots/new/',
+  path: '/pots/new/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +59,8 @@ export interface FileRoutesByFullPath {
   '/login/': typeof LoginIndexRoute
   '/onboarding/': typeof OnboardingIndexRoute
   '/chat/$roomId/': typeof ChatRoomIdIndexRoute
+  '/pots/$potId/': typeof PotsPotIdIndexRoute
+  '/pots/new/': typeof PotsNewIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +68,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginIndexRoute
   '/onboarding': typeof OnboardingIndexRoute
   '/chat/$roomId': typeof ChatRoomIdIndexRoute
+  '/pots/$potId': typeof PotsPotIdIndexRoute
+  '/pots/new': typeof PotsNewIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,14 +78,37 @@ export interface FileRoutesById {
   '/login/': typeof LoginIndexRoute
   '/onboarding/': typeof OnboardingIndexRoute
   '/chat/$roomId/': typeof ChatRoomIdIndexRoute
+  '/pots/$potId/': typeof PotsPotIdIndexRoute
+  '/pots/new/': typeof PotsNewIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/chat/' | '/login/' | '/onboarding/' | '/chat/$roomId/'
+  fullPaths:
+    | '/'
+    | '/chat/'
+    | '/login/'
+    | '/onboarding/'
+    | '/chat/$roomId/'
+    | '/pots/$potId/'
+    | '/pots/new/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/chat' | '/login' | '/onboarding' | '/chat/$roomId'
+  to:
+    | '/'
+    | '/chat'
+    | '/login'
+    | '/onboarding'
+    | '/chat/$roomId'
+    | '/pots/$potId'
+    | '/pots/new'
   id:
-    '__root__' | '/' | '/chat/' | '/login/' | '/onboarding/' | '/chat/$roomId/'
+    | '__root__'
+    | '/'
+    | '/chat/'
+    | '/login/'
+    | '/onboarding/'
+    | '/chat/$roomId/'
+    | '/pots/$potId/'
+    | '/pots/new/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -78,6 +117,8 @@ export interface RootRouteChildren {
   LoginIndexRoute: typeof LoginIndexRoute
   OnboardingIndexRoute: typeof OnboardingIndexRoute
   ChatRoomIdIndexRoute: typeof ChatRoomIdIndexRoute
+  PotsPotIdIndexRoute: typeof PotsPotIdIndexRoute
+  PotsNewIndexRoute: typeof PotsNewIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -117,6 +158,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRoomIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pots/$potId/': {
+      id: '/pots/$potId/'
+      path: '/pots/$potId'
+      fullPath: '/pots/$potId/'
+      preLoaderRoute: typeof PotsPotIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pots/new/': {
+      id: '/pots/new/'
+      path: '/pots/new'
+      fullPath: '/pots/new/'
+      preLoaderRoute: typeof PotsNewIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -126,6 +181,8 @@ const rootRouteChildren: RootRouteChildren = {
   LoginIndexRoute: LoginIndexRoute,
   OnboardingIndexRoute: OnboardingIndexRoute,
   ChatRoomIdIndexRoute: ChatRoomIdIndexRoute,
+  PotsPotIdIndexRoute: PotsPotIdIndexRoute,
+  PotsNewIndexRoute: PotsNewIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
