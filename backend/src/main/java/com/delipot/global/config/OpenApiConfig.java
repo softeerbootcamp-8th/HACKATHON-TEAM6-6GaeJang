@@ -1,7 +1,10 @@
 package com.delipot.global.config;
 
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import com.delipot.auth.LoginMember;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
@@ -12,6 +15,12 @@ import io.swagger.v3.oas.models.info.Info;
  */
 @Configuration
 public class OpenApiConfig {
+
+	static {
+		// @LoginMember 는 세션에서 주입되는 값이라 요청 파라미터가 아니다.
+		// 등록하지 않으면 springdoc 이 memberId 를 쿼리 파라미터로 오해해 프론트 계약을 오염시킨다.
+		SpringDocUtils.getConfig().addAnnotationsToIgnore(LoginMember.class);
+	}
 
 	@Bean
 	public OpenAPI openAPI() {

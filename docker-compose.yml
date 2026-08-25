@@ -26,5 +26,18 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
 
+  # 세션 저장소. 6379 도 흔히 점유돼 있어 호스트는 6380 으로 뺀다.
+  redis:
+    image: redis:7.4
+    container_name: delipot-redis
+    ports:
+      - '6380:6379'
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   mysql-data:

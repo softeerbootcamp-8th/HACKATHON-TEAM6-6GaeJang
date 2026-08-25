@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { AuthStatus } from './-components/AuthStatus'
 import { HealthCard } from './-components/HealthCard'
 
 export const Route = createFileRoute('/')({
@@ -13,7 +14,8 @@ function HomePage() {
       <p className="text-muted-fg mt-1 text-sm">
         프론트 → 백엔드 → DB 까지 연결됐는지 헬스체크로 확인한다.
       </p>
-      <div className="mt-6">
+      <div className="mt-6 flex flex-col gap-4">
+        <AuthStatus />
         <HealthCard />
       </div>
     </main>

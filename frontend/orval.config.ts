@@ -23,7 +23,8 @@ export default defineConfig({
           name: 'customInstance',
         },
         query: {
-          useQuery: true,
+          // useQuery 를 전역 true 로 두면 POST/DELETE 까지 useQuery 로 강제돼(mutation 이 안 나온다).
+          // 지정하지 않으면 verb 기준 기본값(GET→query, 그 외→mutation)이 적용된다.
           signal: true,
         },
       },

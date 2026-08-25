@@ -8,6 +8,8 @@ export const axiosInstance = Axios.create({
   // dev 에서는 vite proxy(/api → localhost:8080), 배포에서는 VITE_API_BASE_URL 사용
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
   timeout: 10_000,
+  // 세션 쿠키(SID) 기반 인증이라, 크로스 오리진에서도 쿠키를 실어 보내야 한다.
+  withCredentials: true,
 })
 
 axiosInstance.interceptors.response.use(

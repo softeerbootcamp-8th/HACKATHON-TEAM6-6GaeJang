@@ -15,10 +15,15 @@ public enum ErrorCode {
 
 	// 400대 — 클라이언트 입력/상태 문제
 	INVALID_INPUT(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
+	UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),
+	// 번호/비번 중 무엇이 틀렸는지 구분하지 않는다 — 사용자 열거(enumeration) 방지.
+	LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "전화번호 또는 비밀번호가 올바르지 않습니다."),
 	RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "대상을 찾을 수 없습니다."),
 	METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다."),
 	CONFLICT(HttpStatus.CONFLICT, "이미 처리된 요청입니다."),
 	CHAT_ROOM_ACCESS_DENIED(HttpStatus.FORBIDDEN, "채팅방에 접근할 권한이 없습니다."),
+	DUPLICATE_PHONE(HttpStatus.CONFLICT, "이미 가입된 휴대폰 번호입니다."),
+	DUPLICATE_NICKNAME(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다."),
 
 	// 500대 — 서버 문제
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
