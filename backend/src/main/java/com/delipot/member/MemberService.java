@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
+import com.delipot.member.dto.ProfileUpdateRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -62,8 +63,38 @@ public class MemberService {
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 	}
 
-	/** 로그인 검증용 — 없으면 empty 를 돌려주고, 실패 사유는 AuthService 가 통합 처리한다. */
+	/**
+	 * 로그인 검증용 — 없으면 empty 를 돌려주고, 실패 사유는 AuthService 가 통합 처리한다.
+	 * 탈퇴 회원은 조회되지 않아 미가입과 동일하게 LOGIN_FAILED 로 흐른다.
+	 */
 	public Optional<Member> findByPhoneNumber(String phoneNumber) {
-		return memberRepository.findByPhoneNumber(phoneNumber);
+		return memberRepository.findByPhoneNumberAndWithdrawnAtIsNull(phoneNumber);
+	}
+
+	/**
+	 * 프로필 수정. 닉네임은 보낸 경우에만, 주소는 보낸 경우에만 바꾼다.
+	 * 닉네임이 본인의 현재 값과 같으면 중복확인을 건너뛴다(자기 자신은 중복이 아니다).
+	 */
+	@Transactional
+	public Member updateProfile(Long memberId, ProfileUpdateRequest request) {
+		Member member = getById(memberId);
+
+		if (request.nickname() != null && !request.nickname().equals(member.getNickname())) {
+			if (memberRepository.existsByNicknameAndIdNot(request.nickname(), memberId)) {
+				throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
+			}
+			member.changeNickname(request.nickname());
+		}
+		if (request.address() != null) {
+			member.changeAddress(request.address(), request.roadAddress(), request.jibunAddress(),
+				request.latitude(), request.longitude());
+		}
+		return member;
+	}
+
+	/** 회원 탈퇴(soft delete). 탈퇴 가능 여부 검증과 참여 중인 팟 정리는 AuthService 가 먼저 처리한다. */
+	@Transactional
+	public void withdraw(Long memberId) {
+		getById(memberId).withdraw();
 	}
 }

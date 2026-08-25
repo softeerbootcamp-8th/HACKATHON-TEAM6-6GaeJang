@@ -5,8 +5,8 @@ import { useSignup } from '@/api/generated/auth/auth'
 import { redirectIfAuthenticated } from '@/lib/authGuard'
 import { unformatPhoneNumber } from '@/lib/phoneFormatter'
 import { AccountInfoStep } from './-components/AccountInfoStep'
-import { AddressSetupStep } from './-components/AddressSetupStep'
-import type { SelectedLocation } from './-components/KakaoMapPicker'
+import { AddressSetupStep } from '../-components/address/AddressSetupStep'
+import type { SelectedLocation } from '../-components/address/KakaoMapPicker'
 
 export const Route = createFileRoute('/onboarding/')({
   beforeLoad: ({ context }) => redirectIfAuthenticated(context.queryClient),

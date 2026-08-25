@@ -12,12 +12,17 @@ type AddressSetupStepProps = {
   onBack: () => void
   onComplete: (location: SelectedLocation) => void
   isSubmitting?: boolean
+  /** 지도 화면 확정 버튼 문구. 온보딩(가입)과 마이페이지(주소 변경)가 다른 문구를 쓴다. */
+  confirmLabel?: string
+  submittingLabel?: string
 }
 
 export function AddressSetupStep({
   onBack,
   onComplete,
   isSubmitting,
+  confirmLabel,
+  submittingLabel,
 }: AddressSetupStepProps) {
   const [query, setQuery] = useState('')
   const [submittedQuery, setSubmittedQuery] = useState<string | null>(null)
@@ -153,6 +158,8 @@ export function AddressSetupStep({
         onBack={() => setShowMapPicker(false)}
         onConfirm={onComplete}
         isSubmitting={isSubmitting}
+        confirmLabel={confirmLabel}
+        submittingLabel={submittingLabel}
       />
     )
   }

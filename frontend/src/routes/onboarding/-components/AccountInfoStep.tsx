@@ -5,7 +5,7 @@ import { customInstance } from '@/lib/axios'
 import { formatPhoneNumber, unformatPhoneNumber } from '@/lib/phoneFormatter'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { useNicknameAvailability } from '../-hooks/useNicknameAvailability'
+import { useNicknameAvailability } from '../../-hooks/useNicknameAvailability'
 
 type AccountInfoStepProps = {
   phoneNumber: string

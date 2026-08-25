@@ -23,6 +23,10 @@ type KakaoMapPickerProps = {
   onBack: () => void
   onConfirm: (location: SelectedLocation) => void
   isSubmitting?: boolean
+  /** 확정 버튼 기본 텍스트. 온보딩/마이페이지처럼 흐름마다 다른 문구가 필요해서 주입받는다. */
+  confirmLabel?: string
+  /** isSubmitting=true 일 때 보여줄 텍스트. */
+  submittingLabel?: string
 }
 
 const DEFAULT_CENTER = {
@@ -36,6 +40,8 @@ export function KakaoMapPicker({
   onBack,
   onConfirm,
   isSubmitting,
+  confirmLabel = '다음',
+  submittingLabel = '가입 처리 중…',
 }: KakaoMapPickerProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapInstanceRef = useRef<KakaoMapInstance | null>(null)
@@ -228,7 +234,7 @@ export function KakaoMapPicker({
           disabled={isSubmitting}
           className="h-13 w-full rounded-xl text-base font-semibold"
         >
-          {isSubmitting ? '가입 처리 중…' : '다음'}
+          {isSubmitting ? submittingLabel : confirmLabel}
         </Button>
       </div>
     </div>

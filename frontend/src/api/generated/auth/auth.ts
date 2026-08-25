@@ -25,6 +25,7 @@ import type {
   ApiResponseMemberResponse,
   ApiResponseVoid,
   LoginRequest,
+  ProfileUpdateRequest,
   SignupRequest,
 } from '../model'
 
@@ -260,7 +261,7 @@ export const useLogin = <TError = ErrorType<unknown>, TContext = unknown>(
   return useMutation(getLoginMutationOptions(options), queryClient)
 }
 /**
- * 현재 로그인한 회원 정보를 반환한다.
+ * 현재 로그인한 회원 정보를 반환한다. 마이페이지의 '총대 N회' 배지를 포함한다.
  * @summary 내 정보
  */
 export const me = (options?: SecondParameter<typeof customInstance>, signal?: AbortSignal) => {
@@ -353,4 +354,136 @@ export function useMe<TData = Awaited<ReturnType<typeof me>>, TError = ErrorType
   }
 
   return withQueryKey(query, queryOptions.queryKey)
+}
+
+/**
+ * 총대로 있는 진행 중인 팟이 있으면 탈퇴할 수 없다. 참여 중인 팟은 자동으로 나가기 처리된다.
+ * @summary 회원 탈퇴
+ */
+export const withdraw = (
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ApiResponseVoid>({ url: `/api/auth/me`, method: 'DELETE', signal }, options)
+}
+
+export const getWithdrawMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<Awaited<ReturnType<typeof withdraw>>, TError, void, TContext>
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<Awaited<ReturnType<typeof withdraw>>, TError, void, TContext> => {
+  const mutationKey = ['withdraw']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof withdraw>>, void> = () => {
+    return withdraw(requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type WithdrawMutationResult = NonNullable<Awaited<ReturnType<typeof withdraw>>>
+
+export type WithdrawMutationError = ErrorType<unknown>
+
+/**
+ * @summary 회원 탈퇴
+ */
+export const useWithdraw = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<Awaited<ReturnType<typeof withdraw>>, TError, void, TContext>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<Awaited<ReturnType<typeof withdraw>>, TError, void, TContext> => {
+  return useMutation(getWithdrawMutationOptions(options), queryClient)
+}
+/**
+ * 닉네임/주소를 변경한다. 보내지 않은 필드는 그대로 둔다.
+ * @summary 프로필 수정
+ */
+export const updateProfile = (
+  profileUpdateRequest: BodyType<ProfileUpdateRequest>,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ApiResponseMemberResponse>(
+    {
+      url: `/api/auth/me`,
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      data: profileUpdateRequest,
+      signal,
+    },
+    options,
+  )
+}
+
+export const getUpdateProfileMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProfile>>,
+    TError,
+    { data: BodyType<ProfileUpdateRequest> },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateProfile>>,
+  TError,
+  { data: BodyType<ProfileUpdateRequest> },
+  TContext
+> => {
+  const mutationKey = ['updateProfile']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateProfile>>,
+    { data: BodyType<ProfileUpdateRequest> }
+  > = (props) => {
+    const { data } = props ?? {}
+
+    return updateProfile(data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type UpdateProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateProfile>>>
+export type UpdateProfileMutationBody = BodyType<ProfileUpdateRequest>
+export type UpdateProfileMutationError = ErrorType<unknown>
+
+/**
+ * @summary 프로필 수정
+ */
+export const useUpdateProfile = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateProfile>>,
+      TError,
+      { data: BodyType<ProfileUpdateRequest> },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateProfile>>,
+  TError,
+  { data: BodyType<ProfileUpdateRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateProfileMutationOptions(options), queryClient)
 }

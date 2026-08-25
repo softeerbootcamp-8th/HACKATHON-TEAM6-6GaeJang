@@ -84,6 +84,9 @@ public interface PotRepository extends JpaRepository<Pot, Long> {
 	/** 상세 화면의 "총대 N회" 배지. 그 사람이 지금까지 연 팟 수(완료된 것 포함). */
 	long countByHostId(Long hostId);
 
+	/** 회원 탈퇴 검증용 — 총대로 있는 살아있는(ACTIVE) 팟이 있는지. */
+	boolean existsByHostIdAndStatus(Long hostId, PotStatus status);
+
 	@Query("""
 		select p from Pot p
 		where p.id in :potIds

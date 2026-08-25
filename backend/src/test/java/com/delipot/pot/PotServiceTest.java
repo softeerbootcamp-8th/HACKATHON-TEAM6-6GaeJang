@@ -419,6 +419,43 @@ class PotServiceTest {
 		assertThat(pot.getCurrentMemberCount()).isEqualTo(1);
 	}
 
+	// ---------- 회원 탈퇴 연동 ----------
+
+	@Test
+	@DisplayName("총대로 있는 ACTIVE 팟이 있으면 hasActiveHostedPot이 true")
+	void hasActiveHostedPotTrue() {
+		given(potRepository.existsByHostIdAndStatus(HOST_ID, PotStatus.ACTIVE)).willReturn(true);
+
+		assertThat(potService().hasActiveHostedPot(HOST_ID)).isTrue();
+	}
+
+	@Test
+	@DisplayName("참여 중인 ACTIVE 팟에서 전부 나간다 — 나간 만큼 인원이 줄어든다")
+	void leaveAllActivePotsLeavesEachOne() {
+		Pot potA = pot(PotStatus.ACTIVE, 3);
+		Pot potB = pot(PotStatus.ACTIVE, 2);
+		given(potMemberRepository.findActivePotIdsByMemberId(OTHER_ID)).willReturn(java.util.List.of(10L, 20L));
+		given(potRepository.findById(10L)).willReturn(java.util.Optional.of(potA));
+		given(potRepository.findById(20L)).willReturn(java.util.Optional.of(potB));
+		given(potMemberRepository.deleteByPotIdAndMemberId(10L, OTHER_ID)).willReturn(1L);
+		given(potMemberRepository.deleteByPotIdAndMemberId(20L, OTHER_ID)).willReturn(1L);
+
+		potService().leaveAllActivePots(OTHER_ID);
+
+		assertThat(potA.getCurrentMemberCount()).isEqualTo(2);
+		assertThat(potB.getCurrentMemberCount()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("참여 중인 팟이 없으면 아무 것도 하지 않는다")
+	void leaveAllActivePotsNoop() {
+		given(potMemberRepository.findActivePotIdsByMemberId(OTHER_ID)).willReturn(java.util.List.of());
+
+		potService().leaveAllActivePots(OTHER_ID);
+
+		verify(potMemberRepository, never()).deleteByPotIdAndMemberId(any(), any());
+	}
+
 	// ---------- 모집 마감 / 완료 ----------
 
 	@Test
