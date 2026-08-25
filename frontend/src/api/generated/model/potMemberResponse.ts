@@ -7,13 +7,11 @@
  */
 
 /**
- * 팟 목록 조회 조건
+ * 팟 참여자
  */
-export interface PotListRequest {
-  /**
-   * 가게 이름 검색어. 비우면 전체
-   * @minLength 0
-   * @maxLength 100
-   */
-  keyword?: string
+export interface PotMemberResponse {
+  /** 회원 ID */
+  memberId?: number
+  /** 닉네임 */
+  nickname?: string
 }
