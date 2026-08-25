@@ -11,5 +11,9 @@ export interface MemberResponse {
   phoneNumber?: string
   nickname?: string
   address?: string
+  roadAddress?: string
+  jibunAddress?: string
+  latitude?: number
+  longitude?: number
   createdAt?: string
 }

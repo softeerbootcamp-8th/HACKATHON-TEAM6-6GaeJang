@@ -30,7 +30,15 @@ public class AuthService {
 	public SessionIssued signup(SignupRequest request) {
 		String passwordHash = passwordHasher.encode(request.password());
 		Member member = memberService.register(
-			request.phoneNumber(), passwordHash, request.nickname(), request.address());
+			request.phoneNumber(),
+			passwordHash,
+			request.nickname(),
+			request.address(),
+			request.roadAddress(),
+			request.jibunAddress(),
+			request.latitude(),
+			request.longitude()
+		);
 		return issueFor(member, request.rememberMe());
 	}
 

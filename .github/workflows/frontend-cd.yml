@@ -43,6 +43,8 @@ jobs:
       # 따라서 VITE_API_BASE_URL 을 주입하지 않는다(비우면 axios baseURL='' → 동일 오리진).
       - name: Build
         run: pnpm -C frontend build
+        env:
+          VITE_KAKAO_MAP_API_KEY: ${{ secrets.VITE_KAKAO_MAP_API_KEY }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4

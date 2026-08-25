@@ -49,7 +49,7 @@ class AuthServiceTest {
 		Member member = mock(Member.class);
 		given(member.getId()).willReturn(1L);
 		given(passwordHasher.encode("secret1234")).willReturn("HASH");
-		given(memberService.register("01012345678", "HASH", "철수", "서울")).willReturn(member);
+		given(memberService.register("01012345678", "HASH", "철수", "서울", null, null, null, null)).willReturn(member);
 		given(sessionStore.create(1L)).willReturn("sid");
 		given(rememberMeStore.issue(1L)).willReturn("rid");
 
@@ -66,7 +66,7 @@ class AuthServiceTest {
 		Member member = mock(Member.class);
 		given(member.getId()).willReturn(1L);
 		given(passwordHasher.encode("secret1234")).willReturn("HASH");
-		given(memberService.register("01012345678", "HASH", "철수", "서울")).willReturn(member);
+		given(memberService.register("01012345678", "HASH", "철수", "서울", null, null, null, null)).willReturn(member);
 		given(sessionStore.create(1L)).willReturn("sid");
 
 		SessionIssued issued = authService.signup(

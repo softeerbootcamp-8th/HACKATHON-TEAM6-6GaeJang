@@ -1,5 +1,6 @@
 package com.delipot.member;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -15,14 +16,17 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 온보딩으로 가입한 회원. 저장하는 값은 3가지 — 휴대폰번호/닉네임/주소.
- * 비밀번호는 없다(전화번호 인증 기반). 상태 변경은 의미 있는 메서드로만 노출하고 setter 는 두지 않는다.
+ * 온보딩으로 가입한 회원. 휴대폰번호/비밀번호/닉네임/주소(도로명, 지번, 좌표).
+ * 상태 변경은 의미 있는 메서드로만 노출하고 setter 는 두지 않는다.
  */
 @Entity
 @Table(name = "member")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member {
+
+	private static final int COORDINATE_PRECISION = 10;
+	private static final int COORDINATE_SCALE = 7;
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,15 +47,32 @@ public class Member {
 	@Column(nullable = false)
 	private String address;
 
+	@Column(length = 200)
+	private String roadAddress;
+
+	@Column(length = 200)
+	private String jibunAddress;
+
+	@Column(precision = COORDINATE_PRECISION, scale = COORDINATE_SCALE)
+	private BigDecimal latitude;
+
+	@Column(precision = COORDINATE_PRECISION, scale = COORDINATE_SCALE)
+	private BigDecimal longitude;
+
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
-	private Member(String phoneNumber, String password, String nickname, String address) {
+	private Member(String phoneNumber, String password, String nickname, String address,
+		String roadAddress, String jibunAddress, BigDecimal latitude, BigDecimal longitude) {
 		this.phoneNumber = phoneNumber;
 		this.password = password;
 		this.nickname = nickname;
 		this.address = address;
+		this.roadAddress = roadAddress;
+		this.jibunAddress = jibunAddress;
+		this.latitude = latitude;
+		this.longitude = longitude;
 	}
 
 	/**
@@ -59,6 +80,11 @@ public class Member {
 	 * {@code password} 는 이미 해싱된 값을 받는다(엔티티는 해싱을 모른다).
 	 */
 	public static Member register(String phoneNumber, String password, String nickname, String address) {
-		return new Member(phoneNumber, password, nickname, address);
+		return new Member(phoneNumber, password, nickname, address, null, null, null, null);
+	}
+
+	public static Member register(String phoneNumber, String password, String nickname, String address,
+		String roadAddress, String jibunAddress, BigDecimal latitude, BigDecimal longitude) {
+		return new Member(phoneNumber, password, nickname, address, roadAddress, jibunAddress, latitude, longitude);
 	}
 }
