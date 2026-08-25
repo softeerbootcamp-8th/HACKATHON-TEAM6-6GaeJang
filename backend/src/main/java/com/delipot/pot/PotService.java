@@ -127,7 +127,8 @@ public class PotService {
 	 * </ul>
 	 *
 	 * <p>{@code readOnly}가 아닌 이유는 맨 앞에서 방치된 팟(마감 + 5시간)을 일괄 {@code DONE}으로
-	 * 전이시키기 때문이다. 이걸 안 하면 참여자 목록에 끝난 팟이 영구히 쌓인다.
+	 * 전이시키고, 각 채팅방에 나눔완료 공지를 남기기 때문이다. 이걸 안 하면 참여자 목록에 끝난 팟이
+	 * 영구히 쌓이고, 참여자들은 방이 왜 조용해졌는지 알 방법이 없다.
 	 */
 	@Transactional
 	public PotListResponse findPots(Long memberId, PotListRequest request) {
@@ -137,7 +138,7 @@ public class PotService {
 		}
 
 		OffsetDateTime now = OffsetDateTime.now(clock);
-		potRepository.completeAbandoned(now.minusHours(AUTO_COMPLETE_HOURS));
+		completeAbandonedPots(now);
 
 		String keyword = request.searchKeyword();
 
@@ -315,6 +316,25 @@ public class PotService {
 	public void leaveAllActivePots(Long memberId) {
 		for (Long potId : potMemberRepository.findActivePotIdsByMemberId(memberId)) {
 			leave(memberId, potId);
+		}
+	}
+
+	/**
+	 * 마감 후 {@link #AUTO_COMPLETE_HOURS}가 지나도록 총대가 나눔완료를 누르지 않은 팟을 일괄
+	 * {@code DONE}으로 전이시키고, 각 채팅방에 {@link #complete}와 같은 완료 공지를 남긴다.
+	 *
+	 * <p>벌크 UPDATE는 엔티티를 거치지 않아 어느 팟이 바뀌었는지 알 수 없으므로, UPDATE 직전에
+	 * 같은 조건으로 채팅방 id만 먼저 조회해 둔다. 두 조회·갱신 사이에 극히 드물게 동시 접속이
+	 * 끼어들면 완료 공지가 중복 발송될 수 있지만, 자동완료 자체가 늦어도 손해가 없는 정리
+	 * 작업이라 이 경합까지 막을 정도는 아니라고 본다({@link PotRepository#completeAbandoned} 설계와 같은 결).
+	 */
+	private void completeAbandonedPots(OffsetDateTime now) {
+		OffsetDateTime threshold = now.minusHours(AUTO_COMPLETE_HOURS);
+		List<Long> abandonedChatRoomIds = potRepository.findChatRoomIdsAbandoned(threshold);
+		potRepository.completeAbandoned(threshold);
+
+		for (Long chatRoomId : abandonedChatRoomIds) {
+			chatService.postSystemJoinMessage(chatRoomId, "배달팟의 나눔이 완료되었어요");
 		}
 	}
 

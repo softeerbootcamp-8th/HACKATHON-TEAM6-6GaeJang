@@ -13,14 +13,20 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 	Optional<ChatMessage> findFirstByChatRoomIdOrderByIdDesc(Long chatRoomId);
 
 	/**
-	 * senderId가 null인 시스템 메시지(SYSTEM_JOIN, SYSTEM_MENU)도 항상 안읽음으로 잡아야 해서,
-	 * 파생 쿼리의 `sender_id <> :memberId`(NULL 비교 시 UNKNOWN이 되어 제외됨) 대신 JPQL로 명시한다.
+	 * SYSTEM_JOIN(입장 공지·나눔완료 공지 등)은 안읽음 배지에서 항상 제외한다. 실제 사람이 쓴
+	 * 대화가 아니라 시스템 안내문이라서다. SYSTEM_MENU(참여자가 제출한 메뉴)는 대화 내용에
+	 * 가까우니 그대로 센다.
+	 *
+	 * <p>SYSTEM_JOIN을 타입으로 걸러내고 나면 남는 타입(TEXT, IMAGE, SYSTEM_MENU)은 senderId가
+	 * 항상 채워져 있으므로 `m.senderId <> :memberId`의 NULL 비교 문제(파생 쿼리 SenderIdNot이었을 때
+	 * 겪었던 회귀)가 재발하지 않는다.
 	 */
 	@Query("""
 		SELECT COUNT(m) FROM ChatMessage m
 		WHERE m.chatRoom.id = :roomId
 		  AND m.id > :afterId
-		  AND (m.senderId IS NULL OR m.senderId <> :memberId)
+		  AND m.type <> com.delipot.chat.ChatMessage.MessageType.SYSTEM_JOIN
+		  AND m.senderId <> :memberId
 		""")
 	long countUnread(@Param("roomId") Long roomId, @Param("afterId") Long afterId, @Param("memberId") Long memberId);
 

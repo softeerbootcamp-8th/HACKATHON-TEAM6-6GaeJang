@@ -293,7 +293,7 @@ class PotListIntegrationTest {
 	 * 그래서 유예 시간이 지난 팟은 조회 시 서버가 대신 완료 처리한다.
 	 */
 	@Test
-	@DisplayName("마감 후 5시간이 지난 팟은 조회 시 자동으로 나눔 완료된다")
+	@DisplayName("마감 후 5시간이 지난 팟은 조회 시 자동으로 나눔 완료되고 채팅방에 완료 공지가 남는다")
 	void abandonedPotIsAutoCompleted() {
 		Pot mine = savePot(meId, "방치된팟", latitudeOffsetBy(50), CURRENT.minusHours(6));
 
@@ -302,6 +302,11 @@ class PotListIntegrationTest {
 		assertThat(response.hosted()).isEmpty();
 		assertThat(potRepository.findById(mine.getId()).orElseThrow().getStatus())
 			.isEqualTo(PotStatus.DONE);
+
+		var lastMessage = chatMessageRepository.findFirstByChatRoomIdOrderByIdDesc(mine.getChatRoomId())
+			.orElseThrow();
+		assertThat(lastMessage.getType()).isEqualTo(com.delipot.chat.ChatMessage.MessageType.SYSTEM_JOIN);
+		assertThat(lastMessage.getContent()).isEqualTo("배달팟의 나눔이 완료되었어요");
 	}
 
 	@Test
