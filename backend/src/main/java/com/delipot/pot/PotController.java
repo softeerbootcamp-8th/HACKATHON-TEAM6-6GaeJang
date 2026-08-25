@@ -88,6 +88,21 @@ public class PotController {
 	}
 
 	@Operation(
+		summary = "채팅방 기준 팟 상세 조회",
+		description = "채팅방 헤더/배너가 potId 없이 roomId만 가진 경우를 위한 역조회다. "
+			+ "필드·계좌 노출 정책은 GET /api/pots/{potId}와 동일하다. "
+			+ "배달팟에서 만들지 않은 채팅방이거나 아직 연동 전인 방이면 404."
+	)
+	@RequireAuthenticate
+	@GetMapping("/by-chat-room/{chatRoomId}")
+	public ApiResponse<PotDetailResponse> getPotByChatRoom(
+		@LoginMember Long memberId,
+		@PathVariable Long chatRoomId
+	) {
+		return ApiResponse.ok(potService.findDetailByChatRoomId(memberId, chatRoomId));
+	}
+
+	@Operation(
 		summary = "팟 참여 (메뉴 전달)",
 		description = "'총대에게 메뉴 전달하기' 버튼. 참여와 메뉴 전달을 한 번에 처리한다 — "
 			+ "참여 기록(메뉴·금액 포함) + 인원 증가가 한 트랜잭션이다. "

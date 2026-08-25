@@ -353,6 +353,8 @@ class PotServiceTest {
 		Pot pot = pot(PotStatus.ACTIVE, 2);
 		givenPotExists(pot);
 		given(potMemberRepository.existsByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(false);
+		given(memberService.getById(OTHER_ID)).willReturn(
+			Member.register("01022223333", "hash", "참여자", "서울시 강남구"));
 
 		var response = potService().join(OTHER_ID, POT_ID, menuRequest());
 
@@ -363,6 +365,11 @@ class PotServiceTest {
 		assertThat(saved.getMemberId()).isEqualTo(OTHER_ID);
 		assertThat(saved.getMenuContent()).isEqualTo("허니콤보 세트 (순살로 변경) + 콜라 제로 500ml");
 		assertThat(saved.getMenuPrice()).isEqualTo(12000);
+
+		verify(chatService).addMember(CHAT_ROOM_ID, OTHER_ID);
+		verify(chatService).postSystemJoinMessage(CHAT_ROOM_ID, "참여자님이 들어왔어요");
+		verify(chatService).postSystemMenuMessage(
+			CHAT_ROOM_ID, OTHER_ID, "허니콤보 세트 (순살로 변경) + 콜라 제로 500ml", 12000);
 	}
 
 	@Test
@@ -432,6 +439,7 @@ class PotServiceTest {
 		potService().leave(OTHER_ID, POT_ID);
 
 		assertThat(pot.getCurrentMemberCount()).isEqualTo(2);
+		verify(chatService).removeMember(CHAT_ROOM_ID, OTHER_ID);
 	}
 
 	@Test
@@ -446,6 +454,7 @@ class PotServiceTest {
 
 		assertThat(pot.getCurrentMemberCount()).isEqualTo(3);
 		verify(potMemberRepository, never()).deleteByPotIdAndMemberId(any(), any());
+		verify(chatService, never()).removeMember(any(), any());
 	}
 
 	@Test
@@ -510,6 +519,7 @@ class PotServiceTest {
 		potService().complete(HOST_ID, POT_ID);
 
 		assertThat(pot.getStatus()).isEqualTo(PotStatus.DONE);
+		verify(chatService).postSystemJoinMessage(CHAT_ROOM_ID, "배달팟의 나눔이 완료되었어요");
 	}
 
 	/** 정원이 차서 마감 전에 주문·수령을 끝낸 경우가 정상 흐름이다. 기다리게 하면 끝난 팟이 목록에 남는다. */

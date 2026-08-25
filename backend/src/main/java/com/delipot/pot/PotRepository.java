@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,6 +13,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface PotRepository extends JpaRepository<Pot, Long> {
+
+	/** 채팅방 헤더/배너의 roomId → potId 역조회({@link Pot#chatRoomId} 참고). */
+	Optional<Pot> findByChatRoomId(Long chatRoomId);
 
 	/**
 	 * 총대가 나눔 완료를 누르지 않고 방치한 팟을 일괄 완료 처리한다. 목록 조회 앞에서 한 번 실행한다.

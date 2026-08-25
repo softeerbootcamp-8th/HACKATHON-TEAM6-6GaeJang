@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -72,6 +73,7 @@ class PotListIntegrationTest {
 	private ChatMessageRepository chatMessageRepository;
 
 	private PotService potService;
+	private ChatService chatService;
 	private Long meId;
 	private Long strangerId;
 
@@ -79,9 +81,9 @@ class PotListIntegrationTest {
 	void setUp() {
 		Clock clock = Clock.fixed(NOW, SEOUL);
 		// 채팅도 목으로 대체하지 않는다 — 팟 생성이 실제로 방과 방 멤버 행을 남기는지가 확인 대상이다.
-		ChatService chatService = new ChatService(
+		chatService = new ChatService(
 			chatRoomRepository, chatRoomMemberRepository, chatMessageRepository,
-			memberRepository, mock(ChatImageUploader.class), clock);
+			memberRepository, mock(ChatImageUploader.class), mock(SimpMessagingTemplate.class), clock);
 		potService = new PotService(
 			potRepository, potMemberRepository, new MemberService(memberRepository), chatService, clock);
 
@@ -96,7 +98,11 @@ class PotListIntegrationTest {
 		return MY_LAT.add(BigDecimal.valueOf(meters / 111_320.0).setScale(7, RoundingMode.HALF_UP));
 	}
 
-	/** 팟 하나를 저장한다. 총대 참여 기록까지 직접 심어 서비스의 create 경로와 같은 상태로 맞춘다. */
+	/**
+	 * 팟 하나를 저장한다. 총대 참여 기록과 채팅방 연결까지 직접 심어 서비스의 create 경로와
+	 * 같은 상태로 맞춘다 — join/leave/complete가 실제로 chatRoomId를 쓰기 때문에 null로
+	 * 두면 안 된다.
+	 */
 	private Pot savePot(Long hostId, String storeName, BigDecimal latitude, OffsetDateTime deadline) {
 		Pot pot = potRepository.save(Pot.builder()
 			.hostId(hostId)
@@ -116,6 +122,11 @@ class PotListIntegrationTest {
 			.build());
 
 		potMemberRepository.save(PotMember.host(pot.getId(), hostId, CURRENT));
+
+		var room = chatService.createRoom(hostId,
+			new com.delipot.chat.dto.ChatRoomCreateRequest(storeName, java.util.List.of(hostId), pot.getMeetingPlace()));
+		pot.linkChatRoom(room.id());
+
 		return pot;
 	}
 
@@ -226,8 +237,8 @@ class PotListIntegrationTest {
 
 		assertThat(card.isHost()).isTrue();
 		assertThat(card.members()).extracting("nickname").containsExactly("나");
-		// 이 팟은 레포지토리로 직접 넣어 채팅방을 붙이지 않았다. create()로 만든 팟은 채워진다.
-		assertThat(card.chatRoomId()).isNull();
+		// savePot()도 create()와 마찬가지로 채팅방을 만들어 연결한다(join/leave/complete가 실제로 쓰기 때문).
+		assertThat(card.chatRoomId()).isNotNull();
 	}
 
 	/**

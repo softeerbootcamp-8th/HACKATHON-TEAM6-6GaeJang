@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -54,6 +55,8 @@ class ChatServiceTest {
 	private MemberRepository memberRepository;
 	@Mock
 	private ChatImageUploader chatImageUploader;
+	@Mock
+	private SimpMessagingTemplate messagingTemplate;
 
 	private ChatService chatService;
 
@@ -61,7 +64,7 @@ class ChatServiceTest {
 	void setUp() {
 		chatService = new ChatService(
 			chatRoomRepository, chatRoomMemberRepository, chatMessageRepository,
-			memberRepository, chatImageUploader, CLOCK
+			memberRepository, chatImageUploader, messagingTemplate, CLOCK
 		);
 	}
 
@@ -256,6 +259,53 @@ class ChatServiceTest {
 	}
 
 	@Test
+	@DisplayName("아직 방 멤버가 아니면 addMember가 새 멤버십을 만든다")
+	void addMember_addsWhenNotAlreadyMember() {
+		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 2L)).willReturn(Optional.empty());
+		given(chatRoomRepository.findById(10L)).willReturn(Optional.of(room));
+
+		chatService.addMember(10L, 2L);
+
+		verify(chatRoomMemberRepository).save(any());
+	}
+
+	@Test
+	@DisplayName("이미 방 멤버면 addMember는 아무 것도 하지 않는다(재시도 안전)")
+	void addMember_noOpWhenAlreadyMember() {
+		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));
+		ChatRoomMember existing = ChatRoomMember.join(room, 2L, OffsetDateTime.now(CLOCK));
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 2L)).willReturn(Optional.of(existing));
+
+		chatService.addMember(10L, 2L);
+
+		verifyNoInteractions(chatRoomRepository);
+		verify(chatRoomMemberRepository, times(0)).save(any());
+	}
+
+	@Test
+	@DisplayName("removeMember는 방 멤버십을 지운다")
+	void removeMember_deletesMembership() {
+		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));
+		ChatRoomMember membership = ChatRoomMember.join(room, 2L, OffsetDateTime.now(CLOCK));
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 2L)).willReturn(Optional.of(membership));
+
+		chatService.removeMember(10L, 2L);
+
+		verify(chatRoomMemberRepository).delete(membership);
+	}
+
+	@Test
+	@DisplayName("이미 멤버가 아니면 removeMember는 아무 것도 하지 않는다(재시도 안전)")
+	void removeMember_noOpWhenNotMember() {
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 2L)).willReturn(Optional.empty());
+
+		chatService.removeMember(10L, 2L);
+
+		verify(chatRoomMemberRepository, times(0)).delete(any());
+	}
+
+	@Test
 	@DisplayName("입장 시스템 메시지는 senderId 없이 SYSTEM_JOIN 타입으로 저장된다")
 	void postSystemJoinMessage_success() {
 		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));
@@ -269,6 +319,7 @@ class ChatServiceTest {
 		assertThat(response.senderId()).isNull();
 		assertThat(response.content()).isEqualTo("동교동자취러님이 들어왔어요");
 		assertThat(response.menuPrice()).isNull();
+		verify(messagingTemplate).convertAndSend(eq("/topic/rooms/10"), eq(response));
 	}
 
 	@Test
@@ -283,17 +334,17 @@ class ChatServiceTest {
 	}
 
 	@Test
-	@DisplayName("메뉴 시스템 메시지는 menuPrice를 함께 저장한다")
+	@DisplayName("메뉴 시스템 메시지는 제출한 사람의 senderId와 menuPrice를 함께 저장한다")
 	void postSystemMenuMessage_success() {
 		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));
 		setId(room, 10L);
 		given(chatRoomRepository.findById(10L)).willReturn(Optional.of(room));
 		given(chatMessageRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 
-		var response = chatService.postSystemMenuMessage(10L, "허니콤보 세트 (순살로 변경) + 콜라 제로 500ml", 12000);
+		var response = chatService.postSystemMenuMessage(10L, 1L, "허니콤보 세트 (순살로 변경) + 콜라 제로 500ml", 12000);
 
 		assertThat(response.type()).isEqualTo(ChatMessage.MessageType.SYSTEM_MENU);
-		assertThat(response.senderId()).isNull();
+		assertThat(response.senderId()).isEqualTo(1L);
 		assertThat(response.menuPrice()).isEqualTo(12000);
 	}
 }

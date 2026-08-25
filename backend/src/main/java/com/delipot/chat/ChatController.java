@@ -3,7 +3,6 @@ package com.delipot.chat;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,7 +36,6 @@ import lombok.RequiredArgsConstructor;
 public class ChatController {
 
 	private final ChatService chatService;
-	private final SimpMessagingTemplate messagingTemplate;
 
 	@Operation(summary = "채팅방 생성", description = "참여자 목록(요청자 본인 포함)으로 그룹 채팅방을 만든다.")
 	@RequireAuthenticate
@@ -85,9 +83,7 @@ public class ChatController {
 		@PathVariable Long roomId,
 		@RequestParam("file") MultipartFile file
 	) {
-		ChatMessageResponse response = chatService.postImageMessage(memberId, roomId, file);
-		messagingTemplate.convertAndSend("/topic/rooms/" + roomId, response);
-		return ApiResponse.ok(response);
+		return ApiResponse.ok(chatService.postImageMessage(memberId, roomId, file));
 	}
 
 	@Operation(summary = "채팅방 읽음 처리", description = "방의 최신 메시지까지 읽음 처리한다(안읽은 개수 초기화).")

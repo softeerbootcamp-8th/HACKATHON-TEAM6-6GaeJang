@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -39,6 +40,7 @@ public class ChatService {
 	private final ChatMessageRepository chatMessageRepository;
 	private final MemberRepository memberRepository;
 	private final ChatImageUploader chatImageUploader;
+	private final SimpMessagingTemplate messagingTemplate;
 	private final Clock clock;
 
 	@Transactional
@@ -144,7 +146,7 @@ public class ChatService {
 		ChatMessage message = chatMessageRepository.save(
 			ChatMessage.write(membership.getChatRoom(), senderId, content, OffsetDateTime.now(clock))
 		);
-		return toResponse(message);
+		return saveAndBroadcast(roomId, message);
 	}
 
 	/** REST(멀티파트)로 들어온 이미지를 S3에 올리고 IMAGE 메시지로 저장한다. 방 멤버가 아니면 거부. */
@@ -157,12 +159,13 @@ public class ChatService {
 		ChatMessage message = chatMessageRepository.save(
 			ChatMessage.image(membership.getChatRoom(), senderId, imageUrl, OffsetDateTime.now(clock))
 		);
-		return toResponse(message);
+		return saveAndBroadcast(roomId, message);
 	}
 
 	/**
-	 * 배달팟 멤버 가입 시 배달팟 쪽에서 직접 호출하는 내부 API (단일 모놀리식이라 HTTP 없이 서비스 메서드로 노출).
-	 * 닉네임 등 회원 정보는 채팅이 몰라도 되게, 이미 완성된 문구를 호출자가 만들어 넘긴다.
+	 * 배달팟 멤버 가입/나눔 완료 등 배달팟 쪽에서 직접 호출하는 내부 API
+	 * (단일 모놀리식이라 HTTP 없이 서비스 메서드로 노출). 닉네임 등 회원 정보는 채팅이
+	 * 몰라도 되게, 이미 완성된 문구를 호출자가 만들어 넘긴다.
 	 */
 	@Transactional
 	public ChatMessageResponse postSystemJoinMessage(Long roomId, String content) {
@@ -171,18 +174,53 @@ public class ChatService {
 		ChatMessage message = chatMessageRepository.save(
 			ChatMessage.systemJoin(room, content, OffsetDateTime.now(clock))
 		);
-		return toResponse(message);
+		return saveAndBroadcast(roomId, message);
 	}
 
-	/** 참여자가 메뉴를 제출했을 때 배달팟 쪽에서 호출. menuPrice는 방 메뉴 합계 집계에 쓰인다. */
+	/**
+	 * 참여자가 메뉴를 제출했을 때 배달팟 쪽에서 호출. 화면에는 제출한 사람의 아바타·닉네임을 단
+	 * 일반 메시지처럼(색만 다르게) 보여야 해서 senderId를 받는다. menuPrice는 방 메뉴 합계
+	 * 집계에도 쓰인다.
+	 */
 	@Transactional
-	public ChatMessageResponse postSystemMenuMessage(Long roomId, String menuContent, int menuPrice) {
+	public ChatMessageResponse postSystemMenuMessage(Long roomId, Long senderId, String menuContent, int menuPrice) {
 		ChatRoom room = chatRoomRepository.findById(roomId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 		ChatMessage message = chatMessageRepository.save(
-			ChatMessage.systemMenu(room, menuContent, menuPrice, OffsetDateTime.now(clock))
+			ChatMessage.systemMenu(room, senderId, menuContent, menuPrice, OffsetDateTime.now(clock))
 		);
-		return toResponse(message);
+		return saveAndBroadcast(roomId, message);
+	}
+
+	/**
+	 * 배달팟 참여 시 배달팟 쪽에서 호출 — 기존 방에 멤버 하나를 추가한다.
+	 * 이미 멤버면 조용히 무시한다(재시도 안전).
+	 */
+	@Transactional
+	public void addMember(Long roomId, Long memberId) {
+		if (chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, memberId).isPresent()) {
+			return;
+		}
+		ChatRoom room = chatRoomRepository.findById(roomId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+		chatRoomMemberRepository.save(ChatRoomMember.join(room, memberId, OffsetDateTime.now(clock)));
+	}
+
+	/**
+	 * 배달팟 나가기 시 배달팟 쪽에서 호출 — 방 멤버십을 제거한다.
+	 * 이미 멤버가 아니면 조용히 무시한다(재시도 안전).
+	 */
+	@Transactional
+	public void removeMember(Long roomId, Long memberId) {
+		chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, memberId)
+			.ifPresent(chatRoomMemberRepository::delete);
+	}
+
+	/** 저장된 메시지를 방 구독자 전원에게 실시간으로 알린다. SEND/이미지/시스템 메시지가 공유하는 마지막 단계다. */
+	private ChatMessageResponse saveAndBroadcast(Long roomId, ChatMessage message) {
+		ChatMessageResponse response = toResponse(message);
+		messagingTemplate.convertAndSend("/topic/rooms/" + roomId, response);
+		return response;
 	}
 
 	private ChatMessageResponse toResponse(ChatMessage m) {
