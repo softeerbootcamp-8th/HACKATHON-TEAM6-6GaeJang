@@ -52,7 +52,16 @@
   }
 
   .form-control {
-    @apply bg-surface text-fg placeholder:text-muted-fg/60 focus:ring-primary/30 h-14 w-full rounded-xl border-0 px-4 text-[15px] outline-none focus:ring-2;
+    @apply bg-surface text-fg placeholder:text-muted-fg/60 focus:ring-primary/30 h-14 w-full rounded-xl border-0 px-4 text-base outline-none focus:ring-2;
+  }
+
+  .deadline-wheel {
+    scrollbar-width: none;
+    overscroll-behavior-y: contain;
+  }
+
+  .deadline-wheel::-webkit-scrollbar {
+    display: none;
   }
 }
 

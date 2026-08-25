@@ -61,7 +61,7 @@ public record PotCreateRequest(
 	@Schema(description = "총대를 포함한 모집 정원", example = "4")
 	@NotNull(message = "모집 인원은 필수입니다.")
 	@Min(value = 2, message = "모집 인원은 2명 이상이어야 합니다.")
-	@Max(value = 20, message = "모집 인원은 20명 이하여야 합니다.")
+	@Max(value = 4, message = "모집 인원은 4명 이하여야 합니다.")
 	Integer capacity,
 
 	@Schema(description = "가게 최소주문금액(원)", example = "20000")
