@@ -50,8 +50,9 @@ com.delipot
 ### 프로파일 / 스키마 (확정 — 매번 묻지 않는다)
 - `local`(기본): docker compose MySQL, 호스트 포트 **3307**, `ddl-auto: update`
 - `h2`: MySQL 없이 띄울 때 (`create-drop`). 컨텍스트 로딩 테스트는 `@ActiveProfiles("h2")`
-- `prod`: `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` 환경변수, `ddl-auto: validate`
-- 마이그레이션 도구는 아직 안 쓴다. 운영 스키마 변경은 배포 전에 사람이 DDL을 적용한다.
+- `prod`: `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` 환경변수, `ddl-auto: update`
+  (해커톤 기간 한정. 엔티티가 자주 바뀌는데 마이그레이션 도구가 없어 자동 생성이 필요. 스키마 안정화되면 `validate` 로 되돌린다.)
+- 마이그레이션 도구는 아직 안 쓴다. 스키마가 안정되면 `validate` + 사람이 DDL 선적용(또는 Flyway 도입)으로 전환한다.
 
 ### JPA / 쿼리
 - 기본은 JPA 메서드 쿼리 → 복잡해지면 JPQL(`@Query`) → 성능 필요한 곳만 native query.

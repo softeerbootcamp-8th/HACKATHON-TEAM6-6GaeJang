@@ -96,8 +96,9 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      # 운영에서는 스키마를 코드가 바꾸지 못하게 한다.
-      ddl-auto: validate
+      # 해커톤 기간: 마이그레이션 도구 없이 엔티티가 자주 바뀌므로, 없는 테이블을 자동 생성하도록 update 사용.
+      # (validate 는 사람이 DDL 을 선적용해야 해 배포가 막혔다.) 스키마 안정화되면 validate 로 되돌린다.
+      ddl-auto: update
     open-in-view: false
   data:
     redis:
