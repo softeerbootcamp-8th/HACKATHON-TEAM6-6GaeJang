@@ -17,17 +17,21 @@ public record PotCreateResponse(
 	@Schema(description = "생성된 팟 ID", example = "1")
 	Long potId,
 
-	@Schema(description = "팟 상태", example = "RECRUITING")
+	@Schema(description = "팟 상태", example = "ACTIVE")
 	PotStatus status,
 
 	@Schema(description = "총대 포함 현재 참여 인원", example = "1")
 	int currentMemberCount,
+
+	@Schema(description = "채팅방 ID. 채팅방 연동 전까지 null", example = "3")
+	Long chatRoomId,
 
 	@Schema(description = "생성 시각")
 	OffsetDateTime createdAt
 ) {
 
 	public static PotCreateResponse from(Pot pot) {
-		return new PotCreateResponse(pot.getId(), pot.getStatus(), pot.getCurrentMemberCount(), pot.getCreatedAt());
+		return new PotCreateResponse(
+			pot.getId(), pot.getStatus(), pot.getCurrentMemberCount(), pot.getChatRoomId(), pot.getCreatedAt());
 	}
 }

@@ -3,6 +3,7 @@ package com.delipot.global.error;
 import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -50,6 +51,19 @@ public class GlobalExceptionHandler {
 		log.warn("요청 본문을 읽을 수 없음: {}", e.getMostSpecificCause().getMessage());
 		return ResponseEntity.status(ErrorCode.INVALID_INPUT.getStatus())
 			.body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "요청 본문의 형식이 올바르지 않습니다."));
+	}
+
+	/**
+	 * 낙관적 락 충돌 — 두 사람이 같은 순간에 팟의 마지막 자리를 노렸을 때 한쪽이 여기로 온다.
+	 *
+	 * <p>처리하지 않으면 catch-all로 흘러 500 + ERROR 로그가 되는데, 서버 잘못이 아니라
+	 * "먼저 온 사람이 이겼다"는 정상적인 경합 결과다. 클라이언트가 재시도하면 되므로 409로 끊는다.
+	 */
+	@ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+	public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(ObjectOptimisticLockingFailureException e) {
+		log.warn("낙관적 락 충돌: {}", e.getMessage());
+		return ResponseEntity.status(ErrorCode.CONFLICT.getStatus())
+			.body(ApiResponse.fail(ErrorCode.CONFLICT, "다른 요청이 먼저 처리됐습니다. 다시 시도해주세요."));
 	}
 
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)

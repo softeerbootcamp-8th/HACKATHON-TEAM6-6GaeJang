@@ -80,7 +80,7 @@ class PotControllerTest {
 
 	private void givenServiceSucceeds() {
 		given(potService.create(any(Long.class), any(PotCreateRequest.class))).willReturn(new PotCreateResponse(
-			1L, PotStatus.RECRUITING, 1, OffsetDateTime.of(2026, 8, 25, 18, 0, 0, 0, ZoneOffset.ofHours(9))
+			1L, PotStatus.ACTIVE, 1, 3L, OffsetDateTime.of(2026, 8, 25, 18, 0, 0, 0, ZoneOffset.ofHours(9))
 		));
 	}
 
@@ -95,7 +95,7 @@ class PotControllerTest {
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.potId").value(1))
-			.andExpect(jsonPath("$.data.status").value("RECRUITING"))
+			.andExpect(jsonPath("$.data.status").value("ACTIVE"))
 			.andExpect(jsonPath("$.data.currentMemberCount").value(1))
 			.andExpect(jsonPath("$.error").doesNotExist());
 	}

@@ -49,6 +49,14 @@ public class MemberService {
 			Member.register(phoneNumber, passwordHash, nickname, address, roadAddress, jibunAddress, latitude, longitude));
 	}
 
+	/**
+	 * 여러 회원을 한 번에 읽는다. 팟 목록 카드의 참여자 아바타(닉네임)용.
+	 * 팟마다 조회하면 목록 크기 × 참여자 수만큼 쿼리가 나가므로 호출부가 id를 모아 한 번에 부른다.
+	 */
+	public java.util.List<Member> findAllByIds(java.util.Collection<Long> ids) {
+		return memberRepository.findAllById(ids);
+	}
+
 	public Member getById(Long id) {
 		return memberRepository.findById(id)
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
