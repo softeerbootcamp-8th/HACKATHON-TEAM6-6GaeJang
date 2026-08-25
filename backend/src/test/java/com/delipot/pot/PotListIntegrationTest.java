@@ -19,6 +19,10 @@ import org.springframework.test.context.ActiveProfiles;
 
 import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
+import com.delipot.chat.ChatMessageRepository;
+import com.delipot.chat.ChatRoomMemberRepository;
+import com.delipot.chat.ChatRoomRepository;
+import com.delipot.chat.ChatService;
 import com.delipot.member.Member;
 import com.delipot.member.MemberRepository;
 import com.delipot.member.MemberService;
@@ -55,6 +59,15 @@ class PotListIntegrationTest {
 	@Autowired
 	private MemberRepository memberRepository;
 
+	@Autowired
+	private ChatRoomRepository chatRoomRepository;
+
+	@Autowired
+	private ChatRoomMemberRepository chatRoomMemberRepository;
+
+	@Autowired
+	private ChatMessageRepository chatMessageRepository;
+
 	private PotService potService;
 	private Long meId;
 	private Long strangerId;
@@ -62,8 +75,11 @@ class PotListIntegrationTest {
 	@BeforeEach
 	void setUp() {
 		Clock clock = Clock.fixed(NOW, SEOUL);
+		// 채팅도 목으로 대체하지 않는다 — 팟 생성이 실제로 방과 방 멤버 행을 남기는지가 확인 대상이다.
+		ChatService chatService = new ChatService(
+			chatRoomRepository, chatRoomMemberRepository, chatMessageRepository, clock);
 		potService = new PotService(
-			potRepository, potMemberRepository, new MemberService(memberRepository), clock);
+			potRepository, potMemberRepository, new MemberService(memberRepository), chatService, clock);
 
 		meId = memberRepository.save(Member.register(
 			"01011112222", "hash", "나", "서울시 강남구 학동로 171", null, null, MY_LAT, MY_LNG)).getId();
@@ -206,7 +222,7 @@ class PotListIntegrationTest {
 
 		assertThat(card.isHost()).isTrue();
 		assertThat(card.members()).extracting("nickname").containsExactly("나");
-		// 채팅방 연동 전이라 아직 null이다. 채팅 담당자 작업이 붙으면 채워진다.
+		// 이 팟은 레포지토리로 직접 넣어 채팅방을 붙이지 않았다. create()로 만든 팟은 채워진다.
 		assertThat(card.chatRoomId()).isNull();
 	}
 
@@ -304,7 +320,7 @@ class PotListIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("나가면 다시 전체 목록으로 돌아가고 채팅방 멤버십도 사라진다")
+	@DisplayName("나가면 다시 전체 목록으로 돌아가고 인원도 줄어든다")
 	void leaveMovesPotBackToAll() {
 		Pot pot = savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(1));
 		potService.join(meId, pot.getId(), menuRequest());
@@ -344,8 +360,29 @@ class PotListIntegrationTest {
 
 		assertThat(potMemberRepository.existsByPotIdAndMemberId(created.potId(), meId)).isTrue();
 		assertThat(storeNames(search(null).hosted())).containsExactly("교촌 치킨 연남점");
-		// 채팅방 연동은 채팅 담당자 작업이라 아직 비어 있다.
-		assertThat(created.chatRoomId()).isNull();
+		// 총대 혼자 있는 채팅방이 같은 트랜잭션에서 만들어진다.
+		assertThat(created.chatRoomId()).isNotNull();
+	}
+
+	/**
+	 * 총대가 방 멤버로 들어가 있어야 메시지 조회·전송이 통과한다.
+	 * chatRoomId만 채워두고 멤버십을 빠뜨리면 총대 본인이 자기 방에서 CHAT_ROOM_ACCESS_DENIED를 맞는다.
+	 */
+	@Test
+	@DisplayName("팟을 만들면 가게명으로 된 방이 생기고 총대가 그 방 멤버가 된다")
+	void createOpensChatRoomWithHostAsMember() {
+		var created = potService.create(meId, new com.delipot.pot.dto.PotCreateRequest(
+			"교촌 치킨 연남점 같이 시켜요", "교촌 치킨 연남점",
+			"https://web.coupangeats.com/share?storeId=1", "동진시장 사거리 편의점 앞",
+			MY_LAT, MY_LNG, 4, 20000, CURRENT.plusHours(1), "저녁에 같이 시키실 분",
+			"카카오뱅크", "3333-01-1234567", "김하나"));
+
+		Long roomId = created.chatRoomId();
+		assertThat(chatRoomRepository.findById(roomId)).get()
+			.extracting("name").isEqualTo("교촌 치킨 연남점");
+		assertThat(chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, meId)).isPresent();
+		// 참여자 입장은 아직 붙지 않았다 — 방 멤버는 총대 한 명뿐이다.
+		assertThat(chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, strangerId)).isEmpty();
 	}
 
 	// ---------- 상세 ----------

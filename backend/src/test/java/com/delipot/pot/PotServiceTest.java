@@ -3,6 +3,7 @@ package com.delipot.pot;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -21,6 +22,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.delipot.chat.ChatService;
+import com.delipot.chat.dto.ChatRoomCreateRequest;
+import com.delipot.chat.dto.ChatRoomResponse;
 import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
 import com.delipot.member.Member;
@@ -50,19 +54,21 @@ class PotServiceTest {
 	@Mock
 	private MemberService memberService;
 
+	@Mock
+	private ChatService chatService;
+
 	private PotService potService() {
 		return potService(Clock.fixed(NOW, SEOUL));
 	}
 
 	private PotService potService(Clock clock) {
-		return new PotService(potRepository, potMemberRepository, memberService, clock);
+		return new PotService(potRepository, potMemberRepository, memberService, chatService, clock);
 	}
 
 	/** 팟 하나를 총대 {@code HOST_ID}, 인원 {@code memberCount}/4, 상태 {@code status}로 만든다. */
 	private Pot pot(PotStatus status, int memberCount) {
 		Pot pot = Pot.builder()
 			.hostId(HOST_ID)
-			.chatRoomId(CHAT_ROOM_ID)
 			.title("역삼역 호백반점 같이 시켜요")
 			.storeName("호백반점")
 			.storeUrl("https://web.coupangeats.com/share?storeId=781313")
@@ -77,6 +83,8 @@ class PotServiceTest {
 			.accountHolder("김하나")
 			.build();
 
+		pot.linkChatRoom(CHAT_ROOM_ID);
+
 		for (int i = 1; i < memberCount; i++) {
 			pot.increaseMemberCount();
 		}
@@ -86,8 +94,14 @@ class PotServiceTest {
 		return pot;
 	}
 
+	/**
+	 * 생성 경로 공통 스텁. 저장은 그대로 돌려주고, 채팅방은 항상 {@code CHAT_ROOM_ID}로 만들어진 것처럼 둔다.
+	 * 채팅방 생성이 create()의 정상 경로에 들어와 있어서 스텁이 없으면 NPE로 죽는다.
+	 */
 	private void givenSaveEchoes() {
 		given(potRepository.save(any(Pot.class))).willAnswer(invocation -> invocation.getArgument(0));
+		given(chatService.createRoom(any(), any(ChatRoomCreateRequest.class)))
+			.willReturn(new ChatRoomResponse(CHAT_ROOM_ID, "호백반점", CURRENT));
 	}
 
 	private PotMember capturedPotMember() {
@@ -249,24 +263,43 @@ class PotServiceTest {
 		assertThat(hostMember.getMenuPrice()).isNull();
 	}
 
-	/** 채팅방 ID는 채팅 담당자 작업이 붙을 때 채워질 자리다. 팟 도메인은 아직 아무것도 넣지 않는다. */
+	/** 총대 혼자 있는 방이 만들어지고 그 id가 팟과 응답에 함께 실린다. 프론트는 이 값으로 채팅 화면에 들어간다. */
 	@Test
-	@DisplayName("생성 직후 chatRoomId는 아직 비어 있다")
-	void chatRoomIdIsNotSetYet() {
+	@DisplayName("팟을 생성하면 총대 혼자 있는 채팅방이 만들어지고 chatRoomId가 채워진다")
+	void createOpensChatRoomForHostOnly() {
 		givenSaveEchoes();
 
 		PotCreateResponse response = potService().create(HOST_ID, request(CURRENT.plusHours(1)));
 
-		assertThat(response.chatRoomId()).isNull();
+		ArgumentCaptor<ChatRoomCreateRequest> captor = ArgumentCaptor.forClass(ChatRoomCreateRequest.class);
+		verify(chatService).createRoom(eq(HOST_ID), captor.capture());
+		// 방 이름은 가게명. 채팅 목록에서 어느 팟의 방인지 알아볼 단서가 이것뿐이다.
+		assertThat(captor.getValue().name()).isEqualTo("호백반점");
+		assertThat(captor.getValue().memberIds()).containsExactly(HOST_ID);
+
+		assertThat(capturedPot().getChatRoomId()).isEqualTo(CHAT_ROOM_ID);
+		assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
 	}
 
 	@Test
-	@DisplayName("마감시간이 촉박해 거부되면 참여 기록도 남지 않는다")
+	@DisplayName("연결된 채팅방을 다시 붙이려 하면 거부한다 — 이전 방의 참여자·메시지가 고아가 된다")
+	void chatRoomCannotBeRelinked() {
+		Pot pot = pot(PotStatus.ACTIVE, 1);
+
+		assertThatThrownBy(() -> pot.linkChatRoom(99L))
+			.isInstanceOf(IllegalStateException.class);
+
+		assertThat(pot.getChatRoomId()).isEqualTo(CHAT_ROOM_ID);
+	}
+
+	@Test
+	@DisplayName("마감시간이 촉박해 거부되면 참여 기록도 채팅방도 남지 않는다")
 	void rejectedCreateLeavesNothing() {
 		assertThatThrownBy(() -> potService().create(HOST_ID, request(CURRENT.plusMinutes(9))))
 			.isInstanceOf(BusinessException.class);
 
 		verify(potMemberRepository, never()).save(any());
+		verify(chatService, never()).createRoom(any(), any());
 	}
 
 	// ---------- 참여 ----------

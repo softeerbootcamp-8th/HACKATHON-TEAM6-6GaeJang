@@ -23,7 +23,7 @@ public record PotCreateResponse(
 	@Schema(description = "총대 포함 현재 참여 인원", example = "1")
 	int currentMemberCount,
 
-	@Schema(description = "채팅방 ID. 채팅방 연동 전까지 null", example = "3")
+	@Schema(description = "생성된 채팅방 ID. 총대 혼자 있는 방이 함께 만들어진다", example = "3")
 	Long chatRoomId,
 
 	@Schema(description = "생성 시각")

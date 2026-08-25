@@ -64,12 +64,13 @@ public class Pot {
 	/**
 	 * 이 팟의 채팅방. 프론트가 "총대에게 메뉴 전달하기" 이후 어디로 이동할지 판단하는 값이다.
 	 *
-	 * <p>아직 아무도 채우지 않는다 — 채팅방 생성/입장은 채팅 담당자 작업이라 이 도메인에서 건드리지 않는다.
-	 * 컬럼과 응답 필드를 먼저 열어두는 이유는 채팅 쪽이 붙을 때 팟의 API 계약을 다시 깨지 않기 위해서다
-	 * (필드 추가는 프론트를 깨지만, null이 채워지는 것은 깨지 않는다).
+	 * <p>팟 생성 트랜잭션에서 {@link #linkChatRoom(Long)}으로 채워진다. nullable로 두는 이유는
+	 * 두 가지다 — 채팅방 id는 팟이 저장돼야 알 수 있어서 INSERT 시점에는 없고,
+	 * 채팅 연동 전에 만들어진 기존 팟이 null로 남아 있다.
 	 *
 	 * <p>단방향으로만 둔다({@code ChatRoom}은 팟을 모른다). 팟이 {@link PotStatus#DONE}이 되어 목록에서
 	 * 사라진 뒤에도 방은 살아 있어야 하므로, 팟 상태 변화가 채팅 조회로 새는 통로를 만들지 않는다.
+	 * 채팅방에서 팟 정보가 필요하면 이 컬럼을 거꾸로 타면 된다({@code findByChatRoomId}).
 	 */
 	@Column
 	private Long chatRoomId;
@@ -141,12 +142,11 @@ public class Pot {
 	private OffsetDateTime updatedAt;
 
 	@Builder
-	private Pot(Long hostId, Long chatRoomId, String title, String description, String storeName, String storeUrl,
+	private Pot(Long hostId, String title, String description, String storeName, String storeUrl,
 		String meetingPlace, BigDecimal latitude, BigDecimal longitude,
 		int capacity, int minOrderAmount, OffsetDateTime deadline,
 		String bankName, String accountNumber, String accountHolder) {
 		this.hostId = hostId;
-		this.chatRoomId = chatRoomId;
 		this.title = title;
 		this.description = description;
 		this.storeName = storeName;
@@ -163,6 +163,22 @@ public class Pot {
 		// 생성 시점의 불변 규칙은 빌더 밖으로 내보내지 않는다 — 총대는 항상 첫 참여자다.
 		this.currentMemberCount = 1;
 		this.status = PotStatus.ACTIVE;
+	}
+
+	/**
+	 * 채팅방 연결. 팟을 저장한 직후 한 번만 붙는다.
+	 *
+	 * <p>빌더로 받지 않는 이유는 채팅방 id를 알려면 팟이 먼저 저장돼 있어야 해서다
+	 * (방 이름에 팟 정보가 들어간다). 통로를 빌더와 이 메서드 둘로 두면 어느 쪽이 정본인지 흐려진다.
+	 *
+	 * <p>재할당을 막는 이유는 방을 갈아치우면 이전 방에 남은 참여자와 메시지가 고아가 되기 때문이다.
+	 * 정상 흐름에서는 절대 두 번 호출되지 않으므로 도메인 예외가 아니라 프로그래밍 오류로 던진다.
+	 */
+	public void linkChatRoom(Long chatRoomId) {
+		if (this.chatRoomId != null) {
+			throw new IllegalStateException("이미 채팅방이 연결된 팟입니다. potId=" + id);
+		}
+		this.chatRoomId = chatRoomId;
 	}
 
 	/** 정원이 다 찼는지. 참여 기능에서 쓰인다. */
