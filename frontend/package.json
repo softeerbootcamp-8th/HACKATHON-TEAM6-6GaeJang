@@ -14,6 +14,7 @@
     "routes:gen": "tsr generate"
   },
   "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
     "@tanstack/react-query": "5.102.0",
     "@tanstack/react-router": "^1.170.32",
     "axios": "^1.19.0",
