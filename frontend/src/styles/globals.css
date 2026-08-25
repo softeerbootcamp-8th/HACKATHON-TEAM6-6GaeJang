@@ -47,8 +47,8 @@
 }
 
 @layer components {
-  .deadline-sheet {
-    animation: deadline-sheet-up 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  .sheet-slide-up {
+    animation: sheet-slide-up 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .form-control {
@@ -56,7 +56,7 @@
   }
 }
 
-@keyframes deadline-sheet-up {
+@keyframes sheet-slide-up {
   from {
     transform: translateY(100%);
   }

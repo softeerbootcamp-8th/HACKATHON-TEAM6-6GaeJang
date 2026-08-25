@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft } from 'lucide-react'
 
 import { useMe } from '@/api/generated/auth/auth'
 import { getGetMyRoomsQueryKey, useGetMessages, useMarkRead } from '@/api/generated/chat/chat'
@@ -82,13 +83,18 @@ function ChatRoomPage() {
     )
   }
 
+  const groups = groupMessagesByDate(messages)
+
   return (
-    <main aria-label={roomName} className="mx-auto flex h-dvh max-w-md flex-col">
-      <header className="flex items-center gap-2 border-b px-4 py-3">
-        <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
-          ←
+    <main
+      aria-label={roomName}
+      className="bg-bg mx-auto flex h-dvh max-w-[393px] flex-col overflow-hidden shadow-xl"
+    >
+      <header className="flex shrink-0 items-center gap-3 px-4 pt-[max(20px,env(safe-area-inset-top))] pb-4">
+        <Link to="/chat" aria-label="채팅 목록으로" className="flex size-6 items-center justify-center">
+          <ArrowLeft className="size-6" />
         </Link>
-        <h1 className="truncate font-semibold">{roomName}</h1>
+        <h1 className="truncate text-base font-semibold">{roomName}</h1>
       </header>
 
       {error && (
@@ -97,7 +103,7 @@ function ChatRoomPage() {
         </p>
       )}
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3">
         {history.isPending ? (
           <p className="text-muted-fg text-center text-sm">불러오는 중…</p>
         ) : history.isError ? (
@@ -105,8 +111,17 @@ function ChatRoomPage() {
             {history.error.message}
           </p>
         ) : (
-          messages.map((message) => (
-            <MessageBubble key={message.id} message={message} isMine={message.senderId === member.id} />
+          groups.map((group) => (
+            <div key={group.label} className="space-y-2">
+              <p className="text-muted-fg py-1 text-center text-xs">{group.label}</p>
+              {group.messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  isMine={message.senderId === member.id}
+                />
+              ))}
+            </div>
           ))
         )}
         <div ref={bottomRef} />
@@ -115,6 +130,26 @@ function ChatRoomPage() {
       <MessageComposer disabled={!connected} onSend={sendMessage} />
     </main>
   )
+}
+
+function groupMessagesByDate(messages: ChatMessageResponse[]) {
+  const today = new Date().toDateString()
+  const groups: { label: string; messages: ChatMessageResponse[] }[] = []
+
+  for (const message of messages) {
+    if (!message.createdAt) continue
+    const date = new Date(message.createdAt)
+    const label =
+      date.toDateString() === today
+        ? '오늘'
+        : date.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })
+
+    const lastGroup = groups[groups.length - 1]
+    if (lastGroup?.label === label) lastGroup.messages.push(message)
+    else groups.push({ label, messages: [message] })
+  }
+
+  return groups
 }
 
 /** getMyRooms 캐시에서 방 이름을 찾는다 — 별도 "방 상세 조회" API가 없어 목록 캐시를 재사용한다. */

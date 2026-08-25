@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { UsersRound } from 'lucide-react'
 
 import type { PotSummaryResponse } from '@/api/generated/model'
@@ -6,17 +5,22 @@ import { formatDeadline } from '@/routes/pots/-utils/formatDeadline'
 
 type PotCardProps = {
   pot: PotSummaryResponse
+  onOpen: (potId: number) => void
   onComplete?: (potId: number) => void
   isCompleting?: boolean
 }
 
-export function PotCard({ pot, onComplete, isCompleting }: PotCardProps) {
+export function PotCard({ pot, onOpen, onComplete, isCompleting }: PotCardProps) {
   return (
     <article className="bg-bg rounded-[20px] border p-5 shadow-sm">
-      <Link to="/pots/$potId" params={{ potId: String(pot.potId) }} className="block">
+      <button
+        type="button"
+        onClick={() => pot.potId && onOpen(pot.potId)}
+        className="block w-full text-left"
+      >
         <div className="flex items-center justify-between gap-3">
           <span className="bg-primary-soft text-primary rounded-full px-2.5 py-1 text-xs font-semibold">
-            {formatDeadline(pot.deadline)}
+            {pot.isHost ? '주문 진행 중' : formatDeadline(pot.deadline)}
           </span>
           <span className="bg-chip text-muted-fg flex items-center gap-1 rounded-full px-2.5 py-1 text-xs">
             <UsersRound className="size-3.5" />
@@ -32,7 +36,7 @@ export function PotCard({ pot, onComplete, isCompleting }: PotCardProps) {
           </p>
           <MemberStack members={pot.members} />
         </div>
-      </Link>
+      </button>
 
       {pot.isHost && (
         <div className="mt-5 grid grid-cols-2 gap-2 border-t pt-4">
@@ -66,7 +70,7 @@ function MemberStack({ members = [] }: Pick<PotSummaryResponse, 'members'>) {
           key={member.memberId ?? index}
           title={member.nickname}
           className={`border-bg text-primary-fg flex size-6 items-center justify-center rounded-full border-2 text-[10px] font-semibold ${
-            index === members.length - 1 ? 'bg-primary' : 'bg-fg/35'
+            member.isHost ? 'bg-primary' : 'bg-fg/35'
           }`}
         >
           {member.nickname?.trim().charAt(0) || '?'}

@@ -4,6 +4,7 @@ import { ChevronDown, Minus, Plus, X } from 'lucide-react'
 
 import { useMe } from '@/api/generated/auth/auth'
 import { useCreatePot } from '@/api/generated/pot/pot'
+import { formatAccountNumber } from '@/lib/accountNumberFormatter'
 import { requireAuth } from '@/lib/authGuard'
 import type { PotCreateRequest } from '@/api/generated/model'
 
@@ -82,7 +83,7 @@ function NewPotPage() {
       aria-label="새 배달팟 만들기"
       className="bg-bg mx-auto h-dvh max-w-[393px] overflow-hidden shadow-xl"
     >
-      <div className="relative flex h-full flex-col">
+      <div className="sheet-slide-up relative flex h-full flex-col">
         <header className="bg-bg z-20 flex shrink-0 items-center justify-center px-5 pt-[max(28px,env(safe-area-inset-top))] pb-4">
           <h1 className="text-lg font-bold">새 배달팟 만들기</h1>
           <button
@@ -200,7 +201,14 @@ function NewPotPage() {
                 required
                 maxLength={30}
                 value={form.bankName}
-                onChange={(e) => setField('bankName', e.target.value)}
+                onChange={(e) => {
+                  const bankName = e.target.value
+                  setForm((current) => ({
+                    ...current,
+                    bankName,
+                    accountNumber: formatAccountNumber(bankName, current.accountNumber),
+                  }))
+                }}
                 placeholder="은행명"
                 className="form-control"
               />
@@ -217,8 +225,9 @@ function NewPotPage() {
               required
               pattern="[0-9-]{8,30}"
               value={form.accountNumber}
-              onChange={(e) => setField('accountNumber', e.target.value)}
+              onChange={(e) => setField('accountNumber', formatAccountNumber(form.bankName, e.target.value))}
               placeholder="계좌 번호"
+              inputMode="numeric"
               className="form-control mt-2"
             />
           </FormField>
