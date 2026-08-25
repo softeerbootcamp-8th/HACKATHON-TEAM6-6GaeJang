@@ -1,7 +1,7 @@
 package com.delipot.pot;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -97,7 +97,7 @@ public class Pot {
 	private int minOrderAmount;
 
 	@Column(nullable = false)
-	private LocalDateTime deadline;
+	private OffsetDateTime deadline;
 
 	@Column(nullable = false, length = 30)
 	private String bankName;
@@ -121,15 +121,15 @@ public class Pot {
 
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
-	private LocalDateTime createdAt;
+	private OffsetDateTime createdAt;
 
 	@UpdateTimestamp
-	private LocalDateTime updatedAt;
+	private OffsetDateTime updatedAt;
 
 	@Builder
 	private Pot(Long hostId, String title, String description, String storeName, String storeUrl,
 		String meetingPlace, BigDecimal latitude, BigDecimal longitude,
-		int capacity, int minOrderAmount, LocalDateTime deadline,
+		int capacity, int minOrderAmount, OffsetDateTime deadline,
 		String bankName, String accountNumber, String accountHolder) {
 		this.hostId = hostId;
 		this.title = title;
@@ -155,7 +155,7 @@ public class Pot {
 		return currentMemberCount >= capacity;
 	}
 
-	public boolean isDeadlinePassed(LocalDateTime now) {
+	public boolean isDeadlinePassed(OffsetDateTime now) {
 		return !deadline.isAfter(now);
 	}
 }

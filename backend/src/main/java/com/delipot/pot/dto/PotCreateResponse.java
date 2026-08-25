@@ -1,6 +1,6 @@
 package com.delipot.pot.dto;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import com.delipot.pot.Pot;
 import com.delipot.pot.PotStatus;
@@ -24,7 +24,7 @@ public record PotCreateResponse(
 	int currentMemberCount,
 
 	@Schema(description = "생성 시각")
-	LocalDateTime createdAt
+	OffsetDateTime createdAt
 ) {
 
 	public static PotCreateResponse from(Pot pot) {

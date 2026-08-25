@@ -8,7 +8,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.LocalDateTime;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,11 +22,15 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.mockito.ArgumentCaptor;
+
 import com.delipot.pot.dto.PotCreateRequest;
 import com.delipot.pot.dto.PotCreateResponse;
 
 @WebMvcTest(PotController.class)
 class PotControllerTest {
+
+	private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -30,9 +38,12 @@ class PotControllerTest {
 	@MockitoBean
 	private PotService potService;
 
-	/** 마감시간은 @Future 검증을 타므로 테스트 실행 시각 기준 미래로 만든다. */
-	private static String body(String overrides) {
-		LocalDateTime deadline = LocalDateTime.now().plusHours(2).withNano(0);
+	/** 마감시간은 @Future 검증을 타므로 실행 시각 기준 미래(KST 오프셋)로 만든다. */
+	private static String body() {
+		return bodyWithDeadline(OffsetDateTime.now(SEOUL).plusHours(2).withNano(0).toString());
+	}
+
+	private static String bodyWithDeadline(String deadline) {
 		return """
 			{
 			  "hostId": 1,
@@ -49,21 +60,24 @@ class PotControllerTest {
 			  "bankName": "카카오뱅크",
 			  "accountNumber": "3333-01-1234567",
 			  "accountHolder": "김하나"
-			  %s
 			}
-			""".formatted(deadline, overrides);
+			""".formatted(deadline);
+	}
+
+	private void givenServiceSucceeds() {
+		given(potService.create(any(PotCreateRequest.class))).willReturn(new PotCreateResponse(
+			1L, PotStatus.RECRUITING, 1, OffsetDateTime.of(2026, 8, 25, 18, 0, 0, 0, ZoneOffset.ofHours(9))
+		));
 	}
 
 	@Test
 	@DisplayName("POST /api/pots — 201과 ApiResponse 래핑으로 응답한다")
 	void createPot() throws Exception {
-		given(potService.create(any(PotCreateRequest.class))).willReturn(
-			new PotCreateResponse(1L, PotStatus.RECRUITING, 1, LocalDateTime.of(2026, 8, 25, 18, 0))
-		);
+		givenServiceSucceeds();
 
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(body("")))
+				.content(body()))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.potId").value(1))
@@ -72,12 +86,46 @@ class PotControllerTest {
 			.andExpect(jsonPath("$.error").doesNotExist());
 	}
 
+	/**
+	 * 회귀 방지: 이전에는 deadline이 {@code LocalDateTime}이라 Z 접미사가 조용히 버려져
+	 * 마감이 9시간 앞당겨졌다. 이제 오프셋을 반영한 절대 시각으로 들어온다.
+	 */
+	@Test
+	@DisplayName("프론트가 toISOString()으로 보낸 Z 접미사 값이 오프셋 그대로 해석된다")
+	void preservesOffsetFromIsoString() throws Exception {
+		givenServiceSucceeds();
+
+		// 총대의 의도: KST 2026-12-25 19:30 마감
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(bodyWithDeadline("2026-12-25T10:30:00.000Z")))
+			.andExpect(status().isCreated());
+
+		ArgumentCaptor<PotCreateRequest> captor = ArgumentCaptor.forClass(PotCreateRequest.class);
+		verify(potService).create(captor.capture());
+
+		assertThat(captor.getValue().deadline().atZoneSameInstant(SEOUL).toLocalDateTime())
+			.hasToString("2026-12-25T19:30");
+	}
+
+	@Test
+	@DisplayName("오프셋이 없는 마감시간은 400 — 어느 지역 시각인지 알 수 없다")
+	void rejectsDeadlineWithoutOffset() throws Exception {
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(bodyWithDeadline("2026-12-25T19:30:00")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+
+		verify(potService, never()).create(any());
+	}
+
 	@Test
 	@DisplayName("가게 링크가 http/https가 아니면 400 INVALID_INPUT")
 	void rejectsNonHttpStoreUrl() throws Exception {
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(body("").replace(
+				.content(body().replace(
 					"https://web.coupangeats.com/share?storeId=781313",
 					"baemin://store/12345")))
 			.andExpect(status().isBadRequest())
@@ -92,7 +140,7 @@ class PotControllerTest {
 	void rejectsCapacityOne() throws Exception {
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(body("").replace("\"capacity\": 4", "\"capacity\": 1")))
+				.content(body().replace("\"capacity\": 4", "\"capacity\": 1")))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
@@ -102,10 +150,11 @@ class PotControllerTest {
 	@Test
 	@DisplayName("마감시간이 과거면 400")
 	void rejectsPastDeadline() throws Exception {
-		String past = LocalDateTime.now().minusHours(1).withNano(0).toString();
+		String past = OffsetDateTime.now(SEOUL).minusHours(1).withNano(0).toString();
+
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(body("").replaceAll("\"deadline\": \"[^\"]+\"", "\"deadline\": \"" + past + "\"")))
+				.content(bodyWithDeadline(past)))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
@@ -117,7 +166,7 @@ class PotControllerTest {
 	void rejectsMalformedAccountNumber() throws Exception {
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(body("").replace("3333-01-1234567", "카카오3333")))
+				.content(body().replace("3333-01-1234567", "카카오3333")))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
@@ -129,7 +178,7 @@ class PotControllerTest {
 	void rejectsOutOfRangeLatitude() throws Exception {
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(body("").replace("\"latitude\": 37.5006", "\"latitude\": 137.5006")))
+				.content(body().replace("\"latitude\": 37.5006", "\"latitude\": 137.5006")))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 
@@ -141,7 +190,44 @@ class PotControllerTest {
 	void rejectsMissingHostId() throws Exception {
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(body("").replace("\"hostId\": 1,", "")))
+				.content(body().replace("\"hostId\": 1,", "")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+
+		verify(potService, never()).create(any());
+	}
+
+	/** 회귀 방지: 아래 세 경우는 이전에 모두 500 INTERNAL_ERROR로 나갔다. */
+	@Test
+	@DisplayName("숫자 필드에 문자열이 오면 500이 아니라 400")
+	void rejectsTypeMismatchWith400() throws Exception {
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body().replace("\"capacity\": 4", "\"capacity\": \"네명\"")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+
+		verify(potService, never()).create(any());
+	}
+
+	@Test
+	@DisplayName("파싱 불가한 날짜 포맷이면 500이 아니라 400")
+	void rejectsUnparseableDateWith400() throws Exception {
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(bodyWithDeadline("2026-12-25 19:30:00")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+
+		verify(potService, never()).create(any());
+	}
+
+	@Test
+	@DisplayName("절단된 JSON이면 500이 아니라 400")
+	void rejectsBrokenJsonWith400() throws Exception {
+		mockMvc.perform(post("/api/pots")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"hostId\": "))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 

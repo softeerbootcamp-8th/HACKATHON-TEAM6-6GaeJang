@@ -1,7 +1,7 @@
 package com.delipot.pot.dto;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMax;
@@ -66,10 +66,10 @@ public record PotCreateRequest(
 	@Min(value = 0, message = "최소주문금액은 0원 이상이어야 합니다.")
 	Integer minOrderAmount,
 
-	@Schema(description = "모집 마감시간", example = "2026-08-25T19:30:00")
+	@Schema(description = "모집 마감시간. 오프셋을 반드시 포함한다", example = "2026-08-25T19:30:00+09:00")
 	@NotNull(message = "마감시간은 필수입니다.")
 	@Future(message = "마감시간은 현재 시각 이후여야 합니다.")
-	LocalDateTime deadline,
+	OffsetDateTime deadline,
 
 	@Schema(description = "상세 설명")
 	@Size(max = 2000, message = "상세 설명은 2000자 이하여야 합니다.")

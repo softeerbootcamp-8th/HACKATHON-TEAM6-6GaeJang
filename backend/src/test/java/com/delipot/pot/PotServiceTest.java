@@ -10,8 +10,9 @@ import static org.mockito.Mockito.verify;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,20 +30,32 @@ import com.delipot.pot.dto.PotCreateResponse;
 class PotServiceTest {
 
 	private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-	/** 고정 현재 시각: 2026-08-25 18:00 (KST) */
+	/** 고정 현재 시각: 2026-08-25 18:00 KST */
 	private static final Instant NOW = Instant.parse("2026-08-25T09:00:00Z");
-	private static final LocalDateTime CURRENT = LocalDateTime.ofInstant(NOW, SEOUL);
+	private static final OffsetDateTime CURRENT = NOW.atZone(SEOUL).toOffsetDateTime();
 
 	@Mock
 	private PotRepository potRepository;
 
-	private final Clock clock = Clock.fixed(NOW, SEOUL);
-
 	private PotService potService() {
-		return new PotService(potRepository, clock);
+		return new PotService(potRepository, Clock.fixed(NOW, SEOUL));
 	}
 
-	private PotCreateRequest request(LocalDateTime deadline) {
+	private void givenSaveEchoes() {
+		given(potRepository.save(any(Pot.class))).willAnswer(invocation -> invocation.getArgument(0));
+	}
+
+	private Pot capturedPot() {
+		ArgumentCaptor<Pot> captor = ArgumentCaptor.forClass(Pot.class);
+		verify(potRepository).save(captor.capture());
+		return captor.getValue();
+	}
+
+	private PotCreateRequest request(OffsetDateTime deadline) {
+		return request(deadline, 4);
+	}
+
+	private PotCreateRequest request(OffsetDateTime deadline, int capacity) {
 		return new PotCreateRequest(
 			1L,
 			"역삼역 호백반점 같이 시켜요",
@@ -51,7 +64,7 @@ class PotServiceTest {
 			"역삼 스타빌 1층 로비",
 			new BigDecimal("37.5006000"),
 			new BigDecimal("127.0366000"),
-			4,
+			capacity,
 			20000,
 			deadline,
 			"짜장면 먹고 싶은데 최소주문금액이 안 채워져요",
@@ -64,14 +77,11 @@ class PotServiceTest {
 	@Test
 	@DisplayName("팟을 생성하면 RECRUITING 상태로 총대 본인이 첫 참여자가 된다")
 	void createSetsInitialState() {
-		given(potRepository.save(any(Pot.class))).willAnswer(invocation -> invocation.getArgument(0));
+		givenSaveEchoes();
 
 		PotCreateResponse response = potService().create(request(CURRENT.plusHours(1)));
 
-		ArgumentCaptor<Pot> captor = ArgumentCaptor.forClass(Pot.class);
-		verify(potRepository).save(captor.capture());
-		Pot saved = captor.getValue();
-
+		Pot saved = capturedPot();
 		assertThat(saved.getStatus()).isEqualTo(PotStatus.RECRUITING);
 		assertThat(saved.getCurrentMemberCount()).isEqualTo(1);
 		assertThat(saved.getHostId()).isEqualTo(1L);
@@ -95,7 +105,7 @@ class PotServiceTest {
 	@Test
 	@DisplayName("마감시간이 정확히 10분 뒤면 경계값으로 허용한다")
 	void allowsExactlyMinimumDeadline() {
-		given(potRepository.save(any(Pot.class))).willAnswer(invocation -> invocation.getArgument(0));
+		givenSaveEchoes();
 
 		potService().create(request(CURRENT.plusMinutes(10)));
 
@@ -111,17 +121,49 @@ class PotServiceTest {
 		verify(potRepository, never()).save(any());
 	}
 
+	/**
+	 * 회귀 방지: 이전에는 deadline이 {@code LocalDateTime}이라 서버 JVM 타임존이 UTC면
+	 * KST 기준 이미 지난 마감이 통과했다. 절대 시각 비교로 바꿔서 막았다.
+	 */
+	@Test
+	@DisplayName("서버 타임존이 UTC여도 KST 기준 지난 마감은 거부한다")
+	void rejectsPastDeadlineRegardlessOfServerZone() {
+		PotService utcServer = new PotService(potRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+
+		// KST 벽시계로는 17:30 — 고정 현재 시각(18:00 KST)보다 30분 전이다.
+		OffsetDateTime pastInKst = NOW.atZone(SEOUL).toOffsetDateTime().minusMinutes(30);
+
+		assertThatThrownBy(() -> utcServer.create(request(pastInKst)))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.INVALID_INPUT);
+
+		verify(potRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("같은 절대 시각을 다른 오프셋으로 보내도 판정이 같다")
+	void offsetDoesNotChangeVerdict() {
+		givenSaveEchoes();
+
+		// 둘 다 같은 순간: KST 19:00 == UTC 10:00
+		OffsetDateTime asKst = CURRENT.plusHours(1);
+		OffsetDateTime asUtc = asKst.withOffsetSameInstant(ZoneOffset.UTC);
+
+		potService().create(request(asKst));
+		potService().create(request(asUtc));
+
+		verify(potRepository, org.mockito.Mockito.times(2)).save(any(Pot.class));
+	}
+
 	@Test
 	@DisplayName("생성 직후 팟은 정원이 남아 있고 마감 전이다")
 	void newPotIsOpen() {
-		given(potRepository.save(any(Pot.class))).willAnswer(invocation -> invocation.getArgument(0));
+		givenSaveEchoes();
 
 		potService().create(request(CURRENT.plusHours(1)));
 
-		ArgumentCaptor<Pot> captor = ArgumentCaptor.forClass(Pot.class);
-		verify(potRepository).save(captor.capture());
-		Pot saved = captor.getValue();
-
+		Pot saved = capturedPot();
 		assertThat(saved.isFull()).isFalse();
 		assertThat(saved.isDeadlinePassed(CURRENT)).isFalse();
 		assertThat(saved.isDeadlinePassed(CURRENT.plusHours(2))).isTrue();
@@ -130,19 +172,10 @@ class PotServiceTest {
 	@Test
 	@DisplayName("정원 2명인 팟은 총대 1명만으로는 아직 정원이 차지 않는다")
 	void capacityTwoIsNotFullWithHostOnly() {
-		given(potRepository.save(any(Pot.class))).willAnswer(invocation -> invocation.getArgument(0));
+		givenSaveEchoes();
 
-		PotCreateRequest base = request(CURRENT.plusHours(1));
-		PotCreateRequest twoSeats = new PotCreateRequest(
-			base.hostId(), base.title(), base.storeName(), base.storeUrl(), base.meetingPlace(),
-			base.latitude(), base.longitude(), 2, base.minOrderAmount(), base.deadline(),
-			base.description(), base.bankName(), base.accountNumber(), base.accountHolder()
-		);
+		potService().create(request(CURRENT.plusHours(1), 2));
 
-		potService().create(twoSeats);
-
-		ArgumentCaptor<Pot> captor = ArgumentCaptor.forClass(Pot.class);
-		verify(potRepository).save(captor.capture());
-		assertThat(captor.getValue().isFull()).isFalse();
+		assertThat(capturedPot().isFull()).isFalse();
 	}
 }

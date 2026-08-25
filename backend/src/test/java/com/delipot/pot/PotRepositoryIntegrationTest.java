@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
 
 import jakarta.persistence.EntityManager;
@@ -40,7 +42,7 @@ class PotRepositoryIntegrationTest {
 			.longitude(new BigDecimal("127.0366000"))
 			.capacity(4)
 			.minOrderAmount(20000)
-			.deadline(LocalDateTime.of(2026, 8, 25, 19, 30))
+			.deadline(OffsetDateTime.of(2026, 8, 25, 19, 30, 0, 0, ZoneOffset.ofHours(9)))
 			.bankName("카카오뱅크")
 			.accountNumber("3333-01-1234567")
 			.accountHolder("김하나");
@@ -82,7 +84,7 @@ class PotRepositoryIntegrationTest {
 		Pot invalid = validPot().accountNumber(null).build();
 
 		assertThatThrownBy(() -> potRepository.saveAndFlush(invalid))
-			.isInstanceOf(Exception.class);
+			.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
 	@Test
