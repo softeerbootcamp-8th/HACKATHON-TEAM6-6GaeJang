@@ -16,9 +16,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
- * 채팅 이미지를 S3에 올린다. 버킷은 public-read 정책이 걸려 있어(사적인 그룹 채팅용이라
- * presigned URL까지는 과함, 파일명을 UUID로 둬서 추측 불가능성으로 보호) 객체 ACL을 따로
- * 지정하지 않는다 — 버킷 Object Ownership이 "Bucket owner enforced"면 ACL 자체가 막혀 있다.
+ * 채팅 이미지를 S3에 올린다. 버킷은 프론트 정적 자산과 같은 버킷이라 CloudFront OAC 뒤에서만
+ * 읽히고 S3 도메인으로 직접 접근하면 403이 난다(사적인 그룹 채팅용이라 presigned URL까지는
+ * 과함, 파일명을 UUID로 둬서 추측 불가능성으로 보호). 그래서 반환 URL은 S3 도메인이 아니라
+ * {@code publicBaseUrl}(CloudFront 도메인)을 우선 쓴다 — 객체 ACL을 따로 지정하지 않는 이유도
+ * 같다(버킷 Object Ownership이 "Bucket owner enforced"면 ACL 자체가 막혀 있다).
  */
 @Component
 @RequiredArgsConstructor
@@ -33,6 +35,10 @@ public class ChatImageUploader {
 
 	@Value("${app.aws.s3.region}")
 	private String region;
+
+	/** CloudFront 등 버킷 프록시 도메인. 비어 있으면(로컬/h2) S3 버킷 도메인으로 직접 URL을 만든다. */
+	@Value("${app.aws.s3.public-base-url:}")
+	private String publicBaseUrl;
 
 	public String upload(Long roomId, MultipartFile file) {
 		validate(file);
@@ -51,7 +57,17 @@ public class ChatImageUploader {
 			throw new BusinessException(ErrorCode.INVALID_INPUT, "이미지를 읽을 수 없습니다.");
 		}
 
-		return "https://%s.s3.%s.amazonaws.com/%s".formatted(bucket, region, key);
+		return buildPublicUrl(key);
+	}
+
+	private String buildPublicUrl(String key) {
+		if (publicBaseUrl == null || publicBaseUrl.isBlank()) {
+			return "https://%s.s3.%s.amazonaws.com/%s".formatted(bucket, region, key);
+		}
+		String base = publicBaseUrl.endsWith("/")
+			? publicBaseUrl.substring(0, publicBaseUrl.length() - 1)
+			: publicBaseUrl;
+		return "%s/%s".formatted(base, key);
 	}
 
 	private void validate(MultipartFile file) {

@@ -27,6 +27,10 @@ app:
     s3:
       bucket: delipot-s3-523224780149-ap-northeast-2-an
       region: ap-northeast-2
+      # CloudFront 등으로 버킷을 프록시할 때 그 도메인. 비어 있으면(로컬/h2) 업로더가 S3 버킷
+      # 도메인으로 직접 URL을 만든다. 버킷이 CloudFront OAC 뒤에 있어 공개 읽기가 막혀 있는
+      # 환경(prod)에서는 반드시 채워야 이미지가 보인다.
+      public-base-url: ${S3_PUBLIC_BASE_URL:}
   session:
     cookie-name: SID
     # 세션 슬라이딩 만료(초). 인증된 요청마다 갱신. 자동 로그인은 remember-me 가 담당한다.
