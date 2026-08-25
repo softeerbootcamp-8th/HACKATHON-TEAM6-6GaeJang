@@ -33,6 +33,7 @@ class PotServiceTest {
 	/** 고정 현재 시각: 2026-08-25 18:00 KST */
 	private static final Instant NOW = Instant.parse("2026-08-25T09:00:00Z");
 	private static final OffsetDateTime CURRENT = NOW.atZone(SEOUL).toOffsetDateTime();
+	private static final Long HOST_ID = 1L;
 
 	@Mock
 	private PotRepository potRepository;
@@ -57,7 +58,6 @@ class PotServiceTest {
 
 	private PotCreateRequest request(OffsetDateTime deadline, int capacity) {
 		return new PotCreateRequest(
-			1L,
 			"역삼역 호백반점 같이 시켜요",
 			"호백반점",
 			"https://web.coupangeats.com/share?storeId=781313",
@@ -79,7 +79,7 @@ class PotServiceTest {
 	void createSetsInitialState() {
 		givenSaveEchoes();
 
-		PotCreateResponse response = potService().create(request(CURRENT.plusHours(1)));
+		PotCreateResponse response = potService().create(HOST_ID, request(CURRENT.plusHours(1)));
 
 		Pot saved = capturedPot();
 		assertThat(saved.getStatus()).isEqualTo(PotStatus.RECRUITING);
@@ -94,7 +94,7 @@ class PotServiceTest {
 	@Test
 	@DisplayName("마감시간이 10분 이내로 촉박하면 INVALID_INPUT으로 거부한다")
 	void rejectsTooSoonDeadline() {
-		assertThatThrownBy(() -> potService().create(request(CURRENT.plusMinutes(9))))
+		assertThatThrownBy(() -> potService().create(HOST_ID, request(CURRENT.plusMinutes(9))))
 			.isInstanceOf(BusinessException.class)
 			.extracting(e -> ((BusinessException)e).getErrorCode())
 			.isEqualTo(ErrorCode.INVALID_INPUT);
@@ -107,7 +107,7 @@ class PotServiceTest {
 	void allowsExactlyMinimumDeadline() {
 		givenSaveEchoes();
 
-		potService().create(request(CURRENT.plusMinutes(10)));
+		potService().create(HOST_ID, request(CURRENT.plusMinutes(10)));
 
 		verify(potRepository).save(any(Pot.class));
 	}
@@ -115,7 +115,7 @@ class PotServiceTest {
 	@Test
 	@DisplayName("과거 마감시간도 서비스 계층에서 거부한다 — @Valid를 우회한 호출 대비")
 	void rejectsPastDeadline() {
-		assertThatThrownBy(() -> potService().create(request(CURRENT.minusHours(1))))
+		assertThatThrownBy(() -> potService().create(HOST_ID, request(CURRENT.minusHours(1))))
 			.isInstanceOf(BusinessException.class);
 
 		verify(potRepository, never()).save(any());
@@ -133,7 +133,7 @@ class PotServiceTest {
 		// KST 벽시계로는 17:30 — 고정 현재 시각(18:00 KST)보다 30분 전이다.
 		OffsetDateTime pastInKst = NOW.atZone(SEOUL).toOffsetDateTime().minusMinutes(30);
 
-		assertThatThrownBy(() -> utcServer.create(request(pastInKst)))
+		assertThatThrownBy(() -> utcServer.create(HOST_ID, request(pastInKst)))
 			.isInstanceOf(BusinessException.class)
 			.extracting(e -> ((BusinessException)e).getErrorCode())
 			.isEqualTo(ErrorCode.INVALID_INPUT);
@@ -150,8 +150,8 @@ class PotServiceTest {
 		OffsetDateTime asKst = CURRENT.plusHours(1);
 		OffsetDateTime asUtc = asKst.withOffsetSameInstant(ZoneOffset.UTC);
 
-		potService().create(request(asKst));
-		potService().create(request(asUtc));
+		potService().create(HOST_ID, request(asKst));
+		potService().create(HOST_ID, request(asUtc));
 
 		verify(potRepository, org.mockito.Mockito.times(2)).save(any(Pot.class));
 	}
@@ -161,7 +161,7 @@ class PotServiceTest {
 	void newPotIsOpen() {
 		givenSaveEchoes();
 
-		potService().create(request(CURRENT.plusHours(1)));
+		potService().create(HOST_ID, request(CURRENT.plusHours(1)));
 
 		Pot saved = capturedPot();
 		assertThat(saved.isFull()).isFalse();
@@ -174,7 +174,7 @@ class PotServiceTest {
 	void capacityTwoIsNotFullWithHostOnly() {
 		givenSaveEchoes();
 
-		potService().create(request(CURRENT.plusHours(1), 2));
+		potService().create(HOST_ID, request(CURRENT.plusHours(1), 2));
 
 		assertThat(capturedPot().isFull()).isFalse();
 	}
