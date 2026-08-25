@@ -19,7 +19,7 @@ export function DeadlineSheet({ hours, minutes, onChange, onClose, onSave }: Dea
         role="dialog"
         aria-modal="true"
         aria-labelledby="deadline-title"
-        className="deadline-sheet bg-bg w-full rounded-t-[32px] px-5 pt-3 pb-[max(50px,env(safe-area-inset-bottom))]"
+        className="sheet-slide-up bg-bg w-full rounded-t-[32px] px-5 pt-3 pb-[max(50px,env(safe-area-inset-bottom))]"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="bg-border mx-auto h-1 w-32 rounded-full" />

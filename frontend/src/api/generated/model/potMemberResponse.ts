@@ -14,4 +14,6 @@ export interface PotMemberResponse {
   memberId?: number
   /** 닉네임 */
   nickname?: string
+  /** 이 팟의 총대인지. true면 아바타를 주황색으로 그린다 */
+  isHost?: boolean
 }

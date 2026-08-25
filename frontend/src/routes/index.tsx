@@ -10,6 +10,7 @@ import { requireAuth } from '@/lib/authGuard'
 
 import { MobileBottomNav } from './-components/MobileBottomNav'
 import { PotCard } from './-components/PotCard'
+import { PotDetailSheet } from './-components/PotDetailSheet'
 
 export const Route = createFileRoute('/')({
   beforeLoad: ({ context }) => requireAuth(context.queryClient),
@@ -19,6 +20,7 @@ export const Route = createFileRoute('/')({
 function HomePage() {
   const [keyword, setKeyword] = useState('')
   const [actionError, setActionError] = useState('')
+  const [openPotId, setOpenPotId] = useState<number | null>(null)
   const queryClient = useQueryClient()
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
@@ -34,7 +36,7 @@ function HomePage() {
   const normalizedKeyword = keyword.trim().toLocaleLowerCase('ko-KR')
   const filterPots = (items?: PotSummaryResponse[]) =>
     (items ?? []).filter((pot) =>
-      [pot.storeName, pot.title].some((value) =>
+      [pot.storeName, pot.title, pot.description].some((value) =>
         value?.toLocaleLowerCase('ko-KR').includes(normalizedKeyword),
       ),
     )
@@ -61,6 +63,7 @@ function HomePage() {
                 onChange={(event) => setKeyword(event.target.value)}
                 placeholder="지금 먹고 싶은 음식이 있나요?"
                 aria-label="가게 검색"
+                maxLength={100}
                 className="text-fg placeholder:text-muted-fg w-full bg-transparent text-[15px] outline-none"
               />
             </label>
@@ -90,11 +93,12 @@ function HomePage() {
               <PotSection
                 title="내가 연 배달팟"
                 items={hosted}
+                onOpen={setOpenPotId}
                 onComplete={(potId) => complete.mutate({ potId })}
                 completingId={complete.variables?.potId}
               />
-              <PotSection title="참여중인 배달팟" items={joined} />
-              <PotSection title="전체 배달팟" items={all} />
+              <PotSection title="참여중인 배달팟" items={joined} onOpen={setOpenPotId} />
+              <PotSection title="전체 배달팟" items={all} onOpen={setOpenPotId} />
               {hosted.length + joined.length + all.length === 0 && (
                 <StateMessage>
                   현재 진행중인 배달팟이 없어요
@@ -116,6 +120,10 @@ function HomePage() {
           </Link>
         )}
         <MobileBottomNav active="home" />
+
+        {openPotId != null && (
+          <PotDetailSheet potId={openPotId} onClose={() => setOpenPotId(null)} />
+        )}
       </div>
     </main>
   )
@@ -124,11 +132,12 @@ function HomePage() {
 type PotSectionProps = {
   title: string
   items: PotSummaryResponse[]
+  onOpen: (potId: number) => void
   onComplete?: (potId: number) => void
   completingId?: number
 }
 
-function PotSection({ title, items, onComplete, completingId }: PotSectionProps) {
+function PotSection({ title, items, onOpen, onComplete, completingId }: PotSectionProps) {
   if (items.length === 0) return null
   const headingId = `${title}-heading`
   return (
@@ -141,6 +150,7 @@ function PotSection({ title, items, onComplete, completingId }: PotSectionProps)
           <PotCard
             key={pot.potId}
             pot={pot}
+            onOpen={onOpen}
             onComplete={onComplete}
             isCompleting={completingId === pot.potId}
           />

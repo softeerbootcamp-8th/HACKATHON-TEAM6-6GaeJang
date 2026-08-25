@@ -15,6 +15,9 @@ public record PotMemberResponse(
 	Long memberId,
 
 	@Schema(description = "닉네임", example = "연희동주민")
-	String nickname
+	String nickname,
+
+	@Schema(description = "이 팟의 총대인지. true면 아바타를 주황색으로 그린다", example = "false")
+	boolean isHost
 ) {
 }

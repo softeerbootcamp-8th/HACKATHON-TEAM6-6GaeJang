@@ -57,7 +57,7 @@ class PotListControllerTest {
 	private static PotSummaryResponse card(Long potId, String storeName, PotStatus status, boolean isHost) {
 		return new PotSummaryResponse(potId, "저녁에 같이 치킨 시키실 분 구해요", storeName,
 			"같이 시켜요", "동진시장 사거리 편의점 앞", DEADLINE, 2, 4, status, isHost, 3L,
-			List.of(new PotMemberResponse(ME, "연희동주민")));
+			List.of(new PotMemberResponse(ME, "연희동주민", isHost)));
 	}
 
 	private void givenAllThreeSections() {

@@ -152,8 +152,8 @@ public class PotService {
 		List<Pot> others = findOthersNearby(me, myPotIds, keyword, now);
 
 		// 세 섹션의 참여자를 한 번에 긁는다. 섹션별로 나눠 부르면 같은 쿼리가 세 번 나간다.
-		Map<Long, List<PotMemberResponse>> membersByPotId =
-			loadMembers(concatIds(hosted, joined, others));
+		List<Pot> allPots = concatPots(hosted, joined, others);
+		Map<Long, List<PotMemberResponse>> membersByPotId = loadMembers(allPots);
 
 		return new PotListResponse(
 			toSummaries(hosted, memberId, membersByPotId),
@@ -213,7 +213,7 @@ public class PotService {
 		Pot pot = findPot(potId);
 
 		boolean isJoined = potMemberRepository.existsByPotIdAndMemberId(potId, memberId);
-		Map<Long, List<PotMemberResponse>> members = loadMembers(List.of(potId));
+		Map<Long, List<PotMemberResponse>> members = loadMembers(List.of(pot));
 
 		return PotDetailResponse.of(
 			pot,
@@ -292,12 +292,15 @@ public class PotService {
 	 * 카드 아바타용 참여자를 팟 id별로 묶는다. 쿼리는 딱 두 번 — 참여 기록 전체, 닉네임 전체.
 	 * 팟마다 참여자를 조회하면 목록 크기만큼(N+1), 참여자마다 회원을 조회하면 그 곱만큼 쿼리가 나간다.
 	 */
-	private Map<Long, List<PotMemberResponse>> loadMembers(List<Long> potIds) {
-		if (potIds.isEmpty()) {
+	private Map<Long, List<PotMemberResponse>> loadMembers(List<Pot> pots) {
+		if (pots.isEmpty()) {
 			return Map.of();
 		}
 
-		List<PotMember> potMembers = potMemberRepository.findByPotIdIn(potIds);
+		Map<Long, Long> hostIdByPotId = pots.stream()
+			.collect(Collectors.toMap(Pot::getId, Pot::getHostId));
+
+		List<PotMember> potMembers = potMemberRepository.findByPotIdIn(hostIdByPotId.keySet());
 
 		Map<Long, String> nicknameById = memberService
 			.findAllByIds(potMembers.stream().map(PotMember::getMemberId).distinct().toList())
@@ -308,18 +311,22 @@ public class PotService {
 			PotMember::getPotId,
 			Collectors.mapping(
 				// 회원이 지워진 참여 기록은 닉네임이 없다. 목록 전체를 죽이지 않게 빈 문자열로 흘린다.
-				pm -> new PotMemberResponse(pm.getMemberId(), nicknameById.getOrDefault(pm.getMemberId(), "")),
+				pm -> new PotMemberResponse(
+					pm.getMemberId(),
+					nicknameById.getOrDefault(pm.getMemberId(), ""),
+					pm.getMemberId().equals(hostIdByPotId.get(pm.getPotId()))
+				),
 				Collectors.toList()
 			)
 		));
 	}
 
-	private List<Long> concatIds(List<Pot> hosted, List<Pot> joined, List<Pot> others) {
-		List<Long> ids = new ArrayList<>();
-		for (List<Pot> pots : List.of(hosted, joined, others)) {
-			pots.forEach(pot -> ids.add(pot.getId()));
-		}
-		return ids;
+	private List<Pot> concatPots(List<Pot> hosted, List<Pot> joined, List<Pot> others) {
+		List<Pot> all = new ArrayList<>();
+		all.addAll(hosted);
+		all.addAll(joined);
+		all.addAll(others);
+		return all;
 	}
 
 	private List<PotSummaryResponse> toSummaries(
