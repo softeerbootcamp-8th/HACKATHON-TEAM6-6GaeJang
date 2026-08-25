@@ -9,10 +9,10 @@
 /**
  * 팟 상태
  */
-export type PotCreateResponseStatus =
-  (typeof PotCreateResponseStatus)[keyof typeof PotCreateResponseStatus]
+export type PotDetailResponseStatus =
+  (typeof PotDetailResponseStatus)[keyof typeof PotDetailResponseStatus]
 
-export const PotCreateResponseStatus = {
+export const PotDetailResponseStatus = {
   ACTIVE: 'ACTIVE',
   DONE: 'DONE',
 } as const

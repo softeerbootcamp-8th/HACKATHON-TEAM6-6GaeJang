@@ -23,6 +23,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
+import com.delipot.member.Member;
+import com.delipot.member.MemberService;
 import com.delipot.pot.dto.PotCreateRequest;
 import com.delipot.pot.dto.PotCreateResponse;
 
@@ -34,16 +36,68 @@ class PotServiceTest {
 	private static final Instant NOW = Instant.parse("2026-08-25T09:00:00Z");
 	private static final OffsetDateTime CURRENT = NOW.atZone(SEOUL).toOffsetDateTime();
 	private static final Long HOST_ID = 1L;
+	private static final Long OTHER_ID = 2L;
+	private static final Long POT_ID = 10L;
+
+	private static final Long CHAT_ROOM_ID = 3L;
 
 	@Mock
 	private PotRepository potRepository;
 
+	@Mock
+	private PotMemberRepository potMemberRepository;
+
+	@Mock
+	private MemberService memberService;
+
 	private PotService potService() {
-		return new PotService(potRepository, Clock.fixed(NOW, SEOUL));
+		return potService(Clock.fixed(NOW, SEOUL));
+	}
+
+	private PotService potService(Clock clock) {
+		return new PotService(potRepository, potMemberRepository, memberService, clock);
+	}
+
+	/** 팟 하나를 총대 {@code HOST_ID}, 인원 {@code memberCount}/4, 상태 {@code status}로 만든다. */
+	private Pot pot(PotStatus status, int memberCount) {
+		Pot pot = Pot.builder()
+			.hostId(HOST_ID)
+			.chatRoomId(CHAT_ROOM_ID)
+			.title("역삼역 호백반점 같이 시켜요")
+			.storeName("호백반점")
+			.storeUrl("https://web.coupangeats.com/share?storeId=781313")
+			.meetingPlace("역삼 스타빌 1층 로비")
+			.latitude(new BigDecimal("37.5006000"))
+			.longitude(new BigDecimal("127.0366000"))
+			.capacity(4)
+			.minOrderAmount(20000)
+			.deadline(CURRENT.plusHours(1))
+			.bankName("카카오뱅크")
+			.accountNumber("3333-01-1234567")
+			.accountHolder("김하나")
+			.build();
+
+		for (int i = 1; i < memberCount; i++) {
+			pot.increaseMemberCount();
+		}
+		if (status == PotStatus.DONE) {
+			pot.complete();
+		}
+		return pot;
 	}
 
 	private void givenSaveEchoes() {
 		given(potRepository.save(any(Pot.class))).willAnswer(invocation -> invocation.getArgument(0));
+	}
+
+	private PotMember capturedPotMember() {
+		ArgumentCaptor<PotMember> captor = ArgumentCaptor.forClass(PotMember.class);
+		verify(potMemberRepository).save(captor.capture());
+		return captor.getValue();
+	}
+
+	private void givenPotExists(Pot pot) {
+		given(potRepository.findById(POT_ID)).willReturn(java.util.Optional.of(pot));
 	}
 
 	private Pot capturedPot() {
@@ -75,19 +129,19 @@ class PotServiceTest {
 	}
 
 	@Test
-	@DisplayName("팟을 생성하면 RECRUITING 상태로 총대 본인이 첫 참여자가 된다")
+	@DisplayName("팟을 생성하면 ACTIVE 상태로 총대 본인이 첫 참여자가 된다")
 	void createSetsInitialState() {
 		givenSaveEchoes();
 
 		PotCreateResponse response = potService().create(HOST_ID, request(CURRENT.plusHours(1)));
 
 		Pot saved = capturedPot();
-		assertThat(saved.getStatus()).isEqualTo(PotStatus.RECRUITING);
+		assertThat(saved.getStatus()).isEqualTo(PotStatus.ACTIVE);
 		assertThat(saved.getCurrentMemberCount()).isEqualTo(1);
 		assertThat(saved.getHostId()).isEqualTo(1L);
 		assertThat(saved.getStoreName()).isEqualTo("호백반점");
 		assertThat(saved.getCapacity()).isEqualTo(4);
-		assertThat(response.status()).isEqualTo(PotStatus.RECRUITING);
+		assertThat(response.status()).isEqualTo(PotStatus.ACTIVE);
 		assertThat(response.currentMemberCount()).isEqualTo(1);
 	}
 
@@ -128,7 +182,7 @@ class PotServiceTest {
 	@Test
 	@DisplayName("서버 타임존이 UTC여도 KST 기준 지난 마감은 거부한다")
 	void rejectsPastDeadlineRegardlessOfServerZone() {
-		PotService utcServer = new PotService(potRepository, Clock.fixed(NOW, ZoneOffset.UTC));
+		PotService utcServer = potService(Clock.fixed(NOW, ZoneOffset.UTC));
 
 		// KST 벽시계로는 17:30 — 고정 현재 시각(18:00 KST)보다 30분 전이다.
 		OffsetDateTime pastInKst = NOW.atZone(SEOUL).toOffsetDateTime().minusMinutes(30);
@@ -177,5 +231,224 @@ class PotServiceTest {
 		potService().create(HOST_ID, request(CURRENT.plusHours(1), 2));
 
 		assertThat(capturedPot().isFull()).isFalse();
+	}
+
+	// ---------- 생성 시 참여 기록 ----------
+
+	@Test
+	@DisplayName("팟을 생성하면 총대가 PotMember로도 기록된다 — 내가 연 팟 조회가 이 테이블을 쓴다")
+	void createRecordsHostAsPotMember() {
+		givenSaveEchoes();
+
+		potService().create(HOST_ID, request(CURRENT.plusHours(1)));
+
+		PotMember hostMember = capturedPotMember();
+		assertThat(hostMember.getMemberId()).isEqualTo(HOST_ID);
+		// 총대는 팟을 만들 때 메뉴를 입력하지 않는다.
+		assertThat(hostMember.getMenuContent()).isNull();
+		assertThat(hostMember.getMenuPrice()).isNull();
+	}
+
+	/** 채팅방 ID는 채팅 담당자 작업이 붙을 때 채워질 자리다. 팟 도메인은 아직 아무것도 넣지 않는다. */
+	@Test
+	@DisplayName("생성 직후 chatRoomId는 아직 비어 있다")
+	void chatRoomIdIsNotSetYet() {
+		givenSaveEchoes();
+
+		PotCreateResponse response = potService().create(HOST_ID, request(CURRENT.plusHours(1)));
+
+		assertThat(response.chatRoomId()).isNull();
+	}
+
+	@Test
+	@DisplayName("마감시간이 촉박해 거부되면 참여 기록도 남지 않는다")
+	void rejectedCreateLeavesNothing() {
+		assertThatThrownBy(() -> potService().create(HOST_ID, request(CURRENT.plusMinutes(9))))
+			.isInstanceOf(BusinessException.class);
+
+		verify(potMemberRepository, never()).save(any());
+	}
+
+	// ---------- 참여 ----------
+
+	@Test
+	@DisplayName("참여하면 인원이 늘고 입력한 메뉴가 참여 기록에 저장된다")
+	void joinIncreasesCountAndStoresMenu() {
+		Pot pot = pot(PotStatus.ACTIVE, 2);
+		givenPotExists(pot);
+		given(potMemberRepository.existsByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(false);
+
+		var response = potService().join(OTHER_ID, POT_ID, menuRequest());
+
+		assertThat(pot.getCurrentMemberCount()).isEqualTo(3);
+		assertThat(response.currentMemberCount()).isEqualTo(3);
+
+		PotMember saved = capturedPotMember();
+		assertThat(saved.getMemberId()).isEqualTo(OTHER_ID);
+		assertThat(saved.getMenuContent()).isEqualTo("허니콤보 세트 (순살로 변경) + 콜라 제로 500ml");
+		assertThat(saved.getMenuPrice()).isEqualTo(12000);
+	}
+
+	@Test
+	@DisplayName("정원이 찬 팟은 POT_FULL로 거부하고 인원을 건드리지 않는다")
+	void joinFullPotIsRejected() {
+		Pot pot = pot(PotStatus.ACTIVE, 4);
+		givenPotExists(pot);
+
+		assertThatThrownBy(() -> potService().join(OTHER_ID, POT_ID, menuRequest()))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_FULL);
+
+		assertThat(pot.getCurrentMemberCount()).isEqualTo(4);
+		verify(potMemberRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("이미 참여한 사람은 POT_ALREADY_JOINED — 두 번 눌러도 인원이 두 번 늘지 않는다")
+	void joinTwiceIsRejected() {
+		Pot pot = pot(PotStatus.ACTIVE, 2);
+		givenPotExists(pot);
+		given(potMemberRepository.existsByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(true);
+
+		assertThatThrownBy(() -> potService().join(OTHER_ID, POT_ID, menuRequest()))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_ALREADY_JOINED);
+
+		assertThat(pot.getCurrentMemberCount()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("나눔 완료된 팟에는 참여할 수 없다 — 목록에서 사라져도 URL 직접 호출은 막아야 한다")
+	void joinDonePotIsRejected() {
+		givenPotExists(pot(PotStatus.DONE, 2));
+
+		assertThatThrownBy(() -> potService().join(OTHER_ID, POT_ID, menuRequest()))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_NOT_ACTIVE);
+	}
+
+	/**
+	 * 마감시간이 지났는데 아직 {@code ACTIVE}인 창(벌크 전이 전)에 참여 요청이 들어올 수 있다.
+	 * 상태만 보면 통과하므로 시각도 함께 본다.
+	 */
+	@Test
+	@DisplayName("상태가 아직 ACTIVE이어도 마감시간이 지났으면 참여를 거부한다")
+	void joinAfterDeadlineIsRejected() {
+		givenPotExists(pot(PotStatus.ACTIVE, 2));
+
+		PotService afterDeadline = potService(Clock.fixed(NOW.plusSeconds(7200), SEOUL));
+
+		assertThatThrownBy(() -> afterDeadline.join(OTHER_ID, POT_ID, menuRequest()))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_NOT_ACTIVE);
+	}
+
+	// ---------- 나가기 ----------
+
+	@Test
+	@DisplayName("팟을 나가면 인원이 줄고 참여 기록이 지워진다")
+	void leaveDecreasesCount() {
+		Pot pot = pot(PotStatus.ACTIVE, 3);
+		givenPotExists(pot);
+		given(potMemberRepository.deleteByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(1L);
+
+		potService().leave(OTHER_ID, POT_ID);
+
+		assertThat(pot.getCurrentMemberCount()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("총대는 팟을 나갈 수 없다 — 정산 계좌 주인이 사라지면 남은 사람이 주문을 이어받을 수 없다")
+	void hostCannotLeave() {
+		Pot pot = pot(PotStatus.ACTIVE, 3);
+		givenPotExists(pot);
+
+		assertThatThrownBy(() -> potService().leave(HOST_ID, POT_ID))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_HOST_CANNOT_LEAVE);
+
+		assertThat(pot.getCurrentMemberCount()).isEqualTo(3);
+		verify(potMemberRepository, never()).deleteByPotIdAndMemberId(any(), any());
+	}
+
+	@Test
+	@DisplayName("참여하지 않은 팟을 나가려 하면 POT_NOT_JOINED — 인원이 음수로 내려가지 않는다")
+	void leaveWithoutJoiningIsRejected() {
+		Pot pot = pot(PotStatus.ACTIVE, 1);
+		givenPotExists(pot);
+		given(potMemberRepository.deleteByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(0L);
+
+		assertThatThrownBy(() -> potService().leave(OTHER_ID, POT_ID))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_NOT_JOINED);
+
+		assertThat(pot.getCurrentMemberCount()).isEqualTo(1);
+	}
+
+	// ---------- 모집 마감 / 완료 ----------
+
+	@Test
+	@DisplayName("총대가 나눔 완료하면 DONE이 된다")
+	void completeMovesToDone() {
+		Pot pot = pot(PotStatus.ACTIVE, 3);
+		givenPotExists(pot);
+
+		potService().complete(HOST_ID, POT_ID);
+
+		assertThat(pot.getStatus()).isEqualTo(PotStatus.DONE);
+	}
+
+	/** 정원이 차서 마감 전에 주문·수령을 끝낸 경우가 정상 흐름이다. 기다리게 하면 끝난 팟이 목록에 남는다. */
+	@Test
+	@DisplayName("마감시간 전에도 나눔 완료할 수 있다")
+	void completeBeforeDeadlineIsAllowed() {
+		Pot pot = pot(PotStatus.ACTIVE, 4);
+		givenPotExists(pot);
+
+		potService().complete(HOST_ID, POT_ID);
+
+		assertThat(pot.getStatus()).isEqualTo(PotStatus.DONE);
+	}
+
+	@Test
+	@DisplayName("총대가 아니면 나눔 완료를 할 수 없다")
+	void completeByNonHostIsRejected() {
+		Pot pot = pot(PotStatus.ACTIVE, 2);
+		givenPotExists(pot);
+
+		assertThatThrownBy(() -> potService().complete(OTHER_ID, POT_ID))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_ACCESS_DENIED);
+
+		assertThat(pot.getStatus()).isEqualTo(PotStatus.ACTIVE);
+	}
+
+	@Test
+	@DisplayName("이미 나눔 완료된 팟을 다시 완료하면 POT_NOT_ACTIVE")
+	void completeTwiceIsRejected() {
+		givenPotExists(pot(PotStatus.DONE, 2));
+
+		assertThatThrownBy(() -> potService().complete(HOST_ID, POT_ID))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_NOT_ACTIVE);
+	}
+
+	@Test
+	@DisplayName("존재하지 않는 팟이면 RESOURCE_NOT_FOUND")
+	void unknownPotIsNotFound() {
+		given(potRepository.findById(POT_ID)).willReturn(java.util.Optional.empty());
+
+		assertThatThrownBy(() -> potService().complete(HOST_ID, POT_ID))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
+	}
+
+	private com.delipot.pot.dto.PotJoinRequest menuRequest() {
+		return new com.delipot.pot.dto.PotJoinRequest("허니콤보 세트 (순살로 변경) + 콜라 제로 500ml", 12000);
+	}
+
+	private Member member(String nickname) {
+		return Member.register("01012345678", "hash", nickname, "서울시 강남구 학동로 171");
 	}
 }

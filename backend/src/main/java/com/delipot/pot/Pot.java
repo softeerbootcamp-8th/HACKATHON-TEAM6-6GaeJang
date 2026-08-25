@@ -36,7 +36,7 @@ import lombok.NoArgsConstructor;
 	indexes = {
 		// 홈 목록: 좌표 바운딩 박스로 먼저 후보를 줄이는 것이 가장 큰 절감이다.
 		@Index(name = "idx_pots_lat_lng", columnList = "latitude, longitude"),
-		// 모집 중 + 마감 전 팟만 노출하므로 두 컬럼을 함께 탄다.
+		// 전체 목록은 살아 있는 팟 중 마감 전만 노출하므로 두 컬럼을 함께 탄다.
 		@Index(name = "idx_pots_status_deadline", columnList = "status, deadline")
 	}
 )
@@ -54,11 +54,25 @@ public class Pot {
 	/**
 	 * 총대(작성자)의 회원 식별자.
 	 *
-	 * <p>회원 도메인이 아직 없어 FK를 걸지 않는다. 팀원의 인증이 들어오면
-	 * {@code @ManyToOne User host}로 승격한다 — 컬럼 타입은 그대로 BIGINT다.
+	 * <p>{@code @ManyToOne Member}로 걸지 않는 이유는 목록 조회가 팟 수십 건을 한 번에 읽는데
+	 * 총대 정보가 카드에 안 나가서다. 연관관계를 걸면 lazy proxy가 팟마다 붙어 실수로 N+1이 나기 쉽다.
+	 * 참여자 닉네임은 서비스에서 한 번에 벌크 조회해 붙인다.
 	 */
 	@Column(nullable = false)
 	private Long hostId;
+
+	/**
+	 * 이 팟의 채팅방. 프론트가 "총대에게 메뉴 전달하기" 이후 어디로 이동할지 판단하는 값이다.
+	 *
+	 * <p>아직 아무도 채우지 않는다 — 채팅방 생성/입장은 채팅 담당자 작업이라 이 도메인에서 건드리지 않는다.
+	 * 컬럼과 응답 필드를 먼저 열어두는 이유는 채팅 쪽이 붙을 때 팟의 API 계약을 다시 깨지 않기 위해서다
+	 * (필드 추가는 프론트를 깨지만, null이 채워지는 것은 깨지 않는다).
+	 *
+	 * <p>단방향으로만 둔다({@code ChatRoom}은 팟을 모른다). 팟이 {@link PotStatus#DONE}이 되어 목록에서
+	 * 사라진 뒤에도 방은 살아 있어야 하므로, 팟 상태 변화가 채팅 조회로 새는 통로를 만들지 않는다.
+	 */
+	@Column
+	private Long chatRoomId;
 
 	@Column(nullable = false, length = 100)
 	private String title;
@@ -127,11 +141,12 @@ public class Pot {
 	private OffsetDateTime updatedAt;
 
 	@Builder
-	private Pot(Long hostId, String title, String description, String storeName, String storeUrl,
+	private Pot(Long hostId, Long chatRoomId, String title, String description, String storeName, String storeUrl,
 		String meetingPlace, BigDecimal latitude, BigDecimal longitude,
 		int capacity, int minOrderAmount, OffsetDateTime deadline,
 		String bankName, String accountNumber, String accountHolder) {
 		this.hostId = hostId;
+		this.chatRoomId = chatRoomId;
 		this.title = title;
 		this.description = description;
 		this.storeName = storeName;
@@ -147,7 +162,7 @@ public class Pot {
 		this.accountHolder = accountHolder;
 		// 생성 시점의 불변 규칙은 빌더 밖으로 내보내지 않는다 — 총대는 항상 첫 참여자다.
 		this.currentMemberCount = 1;
-		this.status = PotStatus.RECRUITING;
+		this.status = PotStatus.ACTIVE;
 	}
 
 	/** 정원이 다 찼는지. 참여 기능에서 쓰인다. */
@@ -157,5 +172,46 @@ public class Pot {
 
 	public boolean isDeadlinePassed(OffsetDateTime now) {
 		return !deadline.isAfter(now);
+	}
+
+	/**
+	 * 아직 살아 있는 팟인지. 나눔 완료되면 false.
+	 *
+	 * <p>"참여할 수 있는지"와 다르다 — 마감시간이 지난 팟도 살아 있다.
+	 * 참여 가능 여부는 이 값과 {@link #isDeadlinePassed(OffsetDateTime)}를 함께 봐야 한다.
+	 */
+	public boolean isActive() {
+		return status == PotStatus.ACTIVE;
+	}
+
+	public boolean isHost(Long memberId) {
+		return hostId.equals(memberId);
+	}
+
+	/**
+	 * 나눔 완료. 참여자를 포함한 모두의 목록에서 사라진다. 채팅방은 남는다.
+	 *
+	 * <p>총대 권한·현재 상태 검증은 서비스가 한다 — 엔티티는 전이만 수행한다.
+	 * 검증을 여기 두면 마감 후 5시간 경과로 일괄 전이할 때(벌크 UPDATE) 규칙이 두 곳으로 갈라진다.
+	 */
+	public void complete() {
+		this.status = PotStatus.DONE;
+	}
+
+	/**
+	 * 참여자 1명 증가.
+	 *
+	 * <p>{@code currentMemberCount}를 {@code PotMember} 행 수로 매번 세지 않고 컬럼으로 들고 있는 이유는
+	 * 목록 카드가 "2/4"를 그리는데, 팟마다 count 쿼리를 날리면 N+1이 되기 때문이다.
+	 * 대신 이 컬럼과 실제 행 수가 어긋나지 않게 참여/나가기를 한 트랜잭션에서 같이 움직인다.
+	 * 동시 참여로 정원을 넘기는 것은 {@link #version} 낙관적 락이 막는다.
+	 */
+	public void increaseMemberCount() {
+		this.currentMemberCount++;
+	}
+
+	/** 참여자 1명 감소. 총대는 나갈 수 없으므로 0으로 떨어지지 않는다. */
+	public void decreaseMemberCount() {
+		this.currentMemberCount--;
 	}
 }

@@ -33,6 +33,7 @@ class PotRepositoryIntegrationTest {
 	private Pot.PotBuilder validPot() {
 		return Pot.builder()
 			.hostId(1L)
+			.chatRoomId(1L)
 			.title("역삼역 호백반점 같이 시켜요")
 			.description("짜장면 먹고 싶은데 최소주문금액이 안 채워져요")
 			.storeName("호백반점")
@@ -59,7 +60,7 @@ class PotRepositoryIntegrationTest {
 		assertThat(found.getId()).isNotNull();
 		assertThat(found.getCreatedAt()).isNotNull();
 		assertThat(found.getVersion()).isZero();
-		assertThat(found.getStatus()).isEqualTo(PotStatus.RECRUITING);
+		assertThat(found.getStatus()).isEqualTo(PotStatus.ACTIVE);
 		assertThat(found.getCurrentMemberCount()).isEqualTo(1);
 	}
 
@@ -98,6 +99,6 @@ class PotRepositoryIntegrationTest {
 			.setParameter("id", saved.getId())
 			.getSingleResult();
 
-		assertThat(status).hasToString("RECRUITING");
+		assertThat(status).hasToString("ACTIVE");
 	}
 }

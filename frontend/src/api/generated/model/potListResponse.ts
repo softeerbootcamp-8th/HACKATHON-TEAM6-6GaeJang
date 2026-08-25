@@ -8,9 +8,13 @@
 import type { PotSummaryResponse } from './potSummaryResponse'
 
 /**
- * 팟 목록 응답
+ * 홈 목록 응답
  */
 export interface PotListResponse {
-  /** 마감 임박순으로 정렬된 팟 목록 */
-  pots?: PotSummaryResponse[]
+  /** 내가 연 배달팟. 마감시간이 지난 팟도 나눔 완료 전까지 포함된다 */
+  hosted?: PotSummaryResponse[]
+  /** 내가 참여중인 배달팟. 마감시간이 지난 팟도 나눔 완료 전까지 포함된다 */
+  joined?: PotSummaryResponse[]
+  /** 300m 이내에서 새로 참여할 수 있는 배달팟. 마감 임박순 */
+  all?: PotSummaryResponse[]
 }

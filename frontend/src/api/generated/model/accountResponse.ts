@@ -7,13 +7,13 @@
  */
 
 /**
- * 팟 목록 조회 조건
+ * 정산 계좌
  */
-export interface PotListRequest {
-  /**
-   * 가게 이름 검색어. 비우면 전체
-   * @minLength 0
-   * @maxLength 100
-   */
-  keyword?: string
+export interface AccountResponse {
+  /** 은행 */
+  bankName?: string
+  /** 계좌번호 */
+  accountNumber?: string
+  /** 예금주 */
+  accountHolder?: string
 }

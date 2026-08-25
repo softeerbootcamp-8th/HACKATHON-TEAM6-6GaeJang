@@ -1,33 +1,17 @@
 package com.delipot.pot.dto;
 
-import java.math.BigDecimal;
-
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
  * 홈 목록 조회 조건.
  *
- * <p>좌표는 회원가입 때 인증한 주소의 좌표다(화면 좌측 상단 "학동로 171"). 실시간 GPS가 아니다.
+ * <p>좌표는 요청에서 받지 않는다. 회원가입 때 카카오맵으로 인증한 주소의 좌표를 서버가 직접 읽는다
+ * (화면 좌측 상단 "학동로 171"). 클라이언트가 좌표를 보내게 두면 남의 동네 팟을 조회할 수 있고,
+ * 프론트가 좌표를 따로 들고 다녀야 해서 화면마다 어긋난다.
  */
 @Schema(description = "팟 목록 조회 조건")
 public record PotListRequest(
-
-	// TODO: 인증 도입 시 이 두 필드를 제거하고 @LoginMember가 준 회원 인증 좌표를 쓴다.
-	@Schema(description = "내 인증 주소의 위도", example = "37.5172")
-	@NotNull(message = "위도는 필수입니다.")
-	@DecimalMin(value = "-90.0", message = "위도는 -90 이상이어야 합니다.")
-	@DecimalMax(value = "90.0", message = "위도는 90 이하여야 합니다.")
-	BigDecimal latitude,
-
-	@Schema(description = "내 인증 주소의 경도", example = "127.0286")
-	@NotNull(message = "경도는 필수입니다.")
-	@DecimalMin(value = "-180.0", message = "경도는 -180 이상이어야 합니다.")
-	@DecimalMax(value = "180.0", message = "경도는 180 이하여야 합니다.")
-	BigDecimal longitude,
 
 	@Schema(description = "가게 이름 검색어. 비우면 전체", example = "치킨")
 	@Size(max = 100, message = "검색어는 100자 이하여야 합니다.")
