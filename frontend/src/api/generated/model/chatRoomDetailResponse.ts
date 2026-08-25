@@ -5,17 +5,22 @@
  * 육개장(Softeer 8기 6팀) 해커톤 프로젝트 Delipot API
  * OpenAPI spec version: v1
  */
+import type { ChatRoomMemberSummary } from './chatRoomMemberSummary'
 
 /**
- * 채팅방 생성 응답
+ * 채팅방 상세 (헤더용)
  */
-export interface ChatRoomResponse {
+export interface ChatRoomDetailResponse {
   /** 채팅방 id */
   id?: number
   /** 채팅방 이름 */
   name?: string
   /** 만날 장소 (없으면 null) */
   location?: string
+  /** 참여자 수 */
+  memberCount?: number
+  /** 참여자 목록 */
+  members?: ChatRoomMemberSummary[]
   /** 생성 시각 */
   createdAt?: string
 }

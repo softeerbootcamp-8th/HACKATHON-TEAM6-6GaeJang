@@ -20,4 +20,6 @@ export interface ChatRoomCreateRequest {
    * @minItems 1
    */
   memberIds: number[]
+  /** 만날 장소 (배달팟 연동 전이라 선택값) */
+  location?: string
 }

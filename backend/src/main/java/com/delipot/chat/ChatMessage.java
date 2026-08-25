@@ -65,6 +65,11 @@ public class ChatMessage {
 		return new ChatMessage(chatRoom, MessageType.TEXT, senderId, content, null, createdAt);
 	}
 
+	/** content는 S3 이미지 URL. */
+	public static ChatMessage image(ChatRoom chatRoom, Long senderId, String imageUrl, OffsetDateTime createdAt) {
+		return new ChatMessage(chatRoom, MessageType.IMAGE, senderId, imageUrl, null, createdAt);
+	}
+
 	public static ChatMessage systemJoin(ChatRoom chatRoom, String content, OffsetDateTime createdAt) {
 		return new ChatMessage(chatRoom, MessageType.SYSTEM_JOIN, null, content, null, createdAt);
 	}
@@ -74,6 +79,6 @@ public class ChatMessage {
 	}
 
 	public enum MessageType {
-		TEXT, SYSTEM_JOIN, SYSTEM_MENU
+		TEXT, IMAGE, SYSTEM_JOIN, SYSTEM_MENU
 	}
 }

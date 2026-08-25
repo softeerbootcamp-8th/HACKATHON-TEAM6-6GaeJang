@@ -9,6 +9,12 @@ spring:
     # 응답의 시각을 서버 OS 타임존이 아니라 항상 +09:00으로 직렬화한다.
     # AppConfig.SERVICE_ZONE 과 같은 값이어야 한다.
     time-zone: Asia/Seoul
+  servlet:
+    multipart:
+      # 비즈니스 제한(5MB)보다 넉넉하게 잡아, 초과 시 서블릿 단이 아니라 우리 쪽에서
+      # 친절한 에러 메시지로 끊게 한다.
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 server:
   port: 8080
@@ -17,6 +23,10 @@ app:
   version: 0.0.1-SNAPSHOT
   cors:
     allowed-origins: http://localhost:5173
+  aws:
+    s3:
+      bucket: delipot-s3-523224780149-ap-northeast-2-an
+      region: ap-northeast-2
   session:
     cookie-name: SID
     # 세션 슬라이딩 만료(초). 인증된 요청마다 갱신. 자동 로그인은 remember-me 가 담당한다.
@@ -83,6 +93,11 @@ spring:
     hibernate:
       ddl-auto: create-drop
     open-in-view: false
+  h2:
+    console:
+      # 개발 편의용. h2 프로파일에서만 켠다 — local/prod는 실 MySQL이라 해당 없음.
+      enabled: true
+      path: /h2-console
 
 ---
 spring:

@@ -1,20 +1,29 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { useMe } from '@/api/generated/auth/auth'
-import { getGetMyRoomsQueryKey, useGetMessages, useMarkRead } from '@/api/generated/chat/chat'
-import type { ApiResponseListChatRoomSummaryResponse, ChatMessageResponse } from '@/api/generated/model'
+import { getGetMyRoomsQueryKey, useGetMessages, useGetRoom, useMarkRead } from '@/api/generated/chat/chat'
+import type { ChatMessageResponse } from '@/api/generated/model'
 import { requireAuth } from '@/lib/authGuard'
 
+import { DateDivider } from './-components/DateDivider'
 import { MessageBubble } from './-components/MessageBubble'
 import { MessageComposer } from './-components/MessageComposer'
 import { useChatSocket } from './-hooks/useChatSocket'
+import { useUploadChatImage } from './-hooks/useUploadChatImage'
 
 export const Route = createFileRoute('/chat/$roomId/')({
   beforeLoad: ({ context }) => requireAuth(context.queryClient),
   component: ChatRoomPage,
 })
+
+function sameDay(aIso?: string, bIso?: string) {
+  if (!aIso || !bIso) return false
+  const a = new Date(aIso)
+  const b = new Date(bIso)
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
 
 function ChatRoomPage() {
   const { roomId: roomIdParam } = useParams({ from: '/chat/$roomId/' })
@@ -24,10 +33,11 @@ function ChatRoomPage() {
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
 
-  const history = useGetMessages(
-    roomId,
-    { size: 50 },
-    { query: { enabled: !!member } },
+  const room = useGetRoom(roomId, { query: { enabled: !!member } })
+  const history = useGetMessages(roomId, { size: 50 }, { query: { enabled: !!member } })
+
+  const nicknameById = new Map(
+    (room.data?.data?.members ?? []).map((m) => [m.memberId, m.nickname]),
   )
 
   const markRead = useMarkRead({
@@ -44,6 +54,13 @@ function ChatRoomPage() {
     markRead.mutate({ roomId })
   })
 
+  // 업로드가 성공하면 서버가 같은 /topic/rooms/{roomId}로 브로드캐스트하므로,
+  // 여기서 직접 liveMessages에 추가하지 않는다(중복 렌더 방지) — useChatSocket의 onMessage가 받는다.
+  const uploadImage = useUploadChatImage()
+  const handleSendImage = (file: File) => {
+    uploadImage.mutate({ roomId, file })
+  }
+
   // 방에 들어오면(이력 로드 완료 시점) 최신 메시지까지 읽음 처리한다.
   useEffect(() => {
     if (member && history.isSuccess) {
@@ -58,8 +75,6 @@ function ChatRoomPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages.length])
-
-  const roomName = useRoomName(roomId) ?? `채팅방 ${roomId}`
 
   if (me.isPending) {
     return (
@@ -82,18 +97,26 @@ function ChatRoomPage() {
     )
   }
 
+  const roomName = room.data?.data?.name ?? `채팅방 ${roomId}`
+  const memberCount = room.data?.data?.memberCount
+  const location = room.data?.data?.location
+  const subtitle = [memberCount != null ? `멤버 ${memberCount}명` : null, location].filter(Boolean).join(' · ')
+
   return (
     <main aria-label={roomName} className="mx-auto flex h-dvh max-w-md flex-col">
       <header className="flex items-center gap-2 border-b px-4 py-3">
         <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
           ←
         </Link>
-        <h1 className="truncate font-semibold">{roomName}</h1>
+        <div className="min-w-0">
+          <h1 className="truncate font-semibold">{roomName}</h1>
+          {subtitle && <p className="text-muted-fg truncate text-xs">{subtitle}</p>}
+        </div>
       </header>
 
-      {error && (
+      {(error ?? uploadImage.error?.message) && (
         <p role="alert" className="text-down bg-muted px-4 py-2 text-center text-xs">
-          {error}
+          {error ?? uploadImage.error?.message}
         </p>
       )}
 
@@ -105,23 +128,25 @@ function ChatRoomPage() {
             {history.error.message}
           </p>
         ) : (
-          messages.map((message) => (
-            <MessageBubble key={message.id} message={message} isMine={message.senderId === member.id} />
-          ))
+          messages.map((message, index) => {
+            const previous = messages[index - 1]
+            const showDivider = !sameDay(message.createdAt, previous?.createdAt)
+            return (
+              <Fragment key={message.id}>
+                {showDivider && message.createdAt && <DateDivider iso={message.createdAt} />}
+                <MessageBubble
+                  message={message}
+                  isMine={message.senderId === member.id}
+                  nickname={message.senderId != null ? nicknameById.get(message.senderId) : undefined}
+                />
+              </Fragment>
+            )
+          })
         )}
         <div ref={bottomRef} />
       </div>
 
-      <MessageComposer disabled={!connected} onSend={sendMessage} />
+      <MessageComposer disabled={!connected} onSend={sendMessage} onSendImage={handleSendImage} />
     </main>
   )
-}
-
-/** getMyRooms 캐시에서 방 이름을 찾는다 — 별도 "방 상세 조회" API가 없어 목록 캐시를 재사용한다. */
-function useRoomName(roomId: number): string | undefined {
-  const queryClient = useQueryClient()
-  const rooms = queryClient.getQueryData<ApiResponseListChatRoomSummaryResponse>(
-    getGetMyRoomsQueryKey(),
-  )
-  return rooms?.data?.find((room) => room.roomId === roomId)?.name
 }

@@ -13,6 +13,12 @@ public record ChatRoomCreateRequest(
 	@NotBlank String name,
 
 	@Schema(description = "참여자 memberId 목록 (요청자 본인 포함 필수)", example = "[1, 2, 3]")
-	@NotEmpty List<Long> memberIds
+	@NotEmpty List<Long> memberIds,
+
+	@Schema(description = "만날 장소 (배달팟 연동 전이라 선택값)", example = "동진시장 사거리 편의점 앞")
+	String location
 ) {
+	public ChatRoomCreateRequest(String name, List<Long> memberIds) {
+		this(name, memberIds, null);
+	}
 }

@@ -5,19 +5,26 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.delipot.chat.dto.ChatMessagePageResponse;
 import com.delipot.chat.dto.ChatMessageResponse;
 import com.delipot.chat.dto.ChatRoomCreateRequest;
+import com.delipot.chat.dto.ChatRoomDetailResponse;
+import com.delipot.chat.dto.ChatRoomMemberSummary;
 import com.delipot.chat.dto.ChatRoomResponse;
 import com.delipot.chat.dto.ChatRoomSummaryResponse;
 import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
+import com.delipot.member.Member;
+import com.delipot.member.MemberRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,6 +37,8 @@ public class ChatService {
 	private final ChatRoomRepository chatRoomRepository;
 	private final ChatRoomMemberRepository chatRoomMemberRepository;
 	private final ChatMessageRepository chatMessageRepository;
+	private final MemberRepository memberRepository;
+	private final ChatImageUploader chatImageUploader;
 	private final Clock clock;
 
 	@Transactional
@@ -39,14 +48,35 @@ public class ChatService {
 		}
 
 		OffsetDateTime now = OffsetDateTime.now(clock);
-		ChatRoom room = chatRoomRepository.save(ChatRoom.create(request.name(), now));
+		ChatRoom room = chatRoomRepository.save(ChatRoom.create(request.name(), request.location(), now));
 
 		Set<Long> distinctMemberIds = new LinkedHashSet<>(request.memberIds());
 		for (Long memberId : distinctMemberIds) {
 			chatRoomMemberRepository.save(ChatRoomMember.join(room, memberId, now));
 		}
 
-		return new ChatRoomResponse(room.getId(), room.getName(), room.getCreatedAt());
+		return new ChatRoomResponse(room.getId(), room.getName(), room.getLocation(), room.getCreatedAt());
+	}
+
+	/** 채팅방 헤더용 상세 — 이름/장소/인원수/참여자 닉네임. 방 멤버가 아니면 거부. */
+	@Transactional(readOnly = true)
+	public ChatRoomDetailResponse getRoom(Long memberId, Long roomId) {
+		ChatRoomMember membership = chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, memberId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_ACCESS_DENIED));
+		ChatRoom room = membership.getChatRoom();
+
+		List<ChatRoomMember> memberships = chatRoomMemberRepository.findByChatRoomId(roomId);
+		List<Long> memberIds = memberships.stream().map(ChatRoomMember::getMemberId).toList();
+		Map<Long, String> nicknameById = memberRepository.findAllById(memberIds).stream()
+			.collect(Collectors.toMap(Member::getId, Member::getNickname));
+
+		List<ChatRoomMemberSummary> members = memberIds.stream()
+			.map(id -> new ChatRoomMemberSummary(id, nicknameById.get(id)))
+			.toList();
+
+		return new ChatRoomDetailResponse(
+			room.getId(), room.getName(), room.getLocation(), members.size(), members, room.getCreatedAt()
+		);
 	}
 
 	@Transactional(readOnly = true)
@@ -113,6 +143,19 @@ public class ChatService {
 
 		ChatMessage message = chatMessageRepository.save(
 			ChatMessage.write(membership.getChatRoom(), senderId, content, OffsetDateTime.now(clock))
+		);
+		return toResponse(message);
+	}
+
+	/** REST(멀티파트)로 들어온 이미지를 S3에 올리고 IMAGE 메시지로 저장한다. 방 멤버가 아니면 거부. */
+	@Transactional
+	public ChatMessageResponse postImageMessage(Long senderId, Long roomId, MultipartFile file) {
+		ChatRoomMember membership = chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, senderId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_ACCESS_DENIED));
+
+		String imageUrl = chatImageUploader.upload(roomId, file);
+		ChatMessage message = chatMessageRepository.save(
+			ChatMessage.image(membership.getChatRoom(), senderId, imageUrl, OffsetDateTime.now(clock))
 		);
 		return toResponse(message);
 	}

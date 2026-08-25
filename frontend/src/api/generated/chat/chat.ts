@@ -23,11 +23,14 @@ import type {
 
 import type {
   ApiResponseChatMessagePageResponse,
+  ApiResponseChatMessageResponse,
+  ApiResponseChatRoomDetailResponse,
   ApiResponseChatRoomResponse,
   ApiResponseListChatRoomSummaryResponse,
   ApiResponseVoid,
   ChatRoomCreateRequest,
   GetMessagesParams,
+  PostImageBody,
 } from '../model'
 
 import { customInstance } from '../../../lib/axios'
@@ -245,6 +248,90 @@ export const useCreateRoom = <TError = ErrorType<unknown>, TContext = unknown>(
   return useMutation(getCreateRoomMutationOptions(options), queryClient)
 }
 /**
+ * 이미지를 S3에 올리고 IMAGE 메시지로 저장·브로드캐스트한다.
+ * @summary 이미지 메시지 전송
+ */
+export const postImage = (
+  roomId: number,
+  postImageBody?: BodyType<PostImageBody>,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ApiResponseChatMessageResponse>(
+    {
+      url: `/api/chat/rooms/${roomId}/images`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: postImageBody,
+      signal,
+    },
+    options,
+  )
+}
+
+export const getPostImageMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postImage>>,
+    TError,
+    { roomId: number; data?: BodyType<PostImageBody> },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postImage>>,
+  TError,
+  { roomId: number; data?: BodyType<PostImageBody> },
+  TContext
+> => {
+  const mutationKey = ['postImage']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postImage>>,
+    { roomId: number; data?: BodyType<PostImageBody> }
+  > = (props) => {
+    const { roomId, data } = props ?? {}
+
+    return postImage(roomId, data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type PostImageMutationResult = NonNullable<Awaited<ReturnType<typeof postImage>>>
+export type PostImageMutationBody = BodyType<PostImageBody> | undefined
+export type PostImageMutationError = ErrorType<unknown>
+
+/**
+ * @summary 이미지 메시지 전송
+ */
+export const usePostImage = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postImage>>,
+      TError,
+      { roomId: number; data?: BodyType<PostImageBody> },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postImage>>,
+  TError,
+  { roomId: number; data?: BodyType<PostImageBody> },
+  TContext
+> => {
+  return useMutation(getPostImageMutationOptions(options), queryClient)
+}
+/**
  * 방의 최신 메시지까지 읽음 처리한다(안읽은 개수 초기화).
  * @summary 채팅방 읽음 처리
  */
@@ -320,6 +407,128 @@ export const useMarkRead = <TError = ErrorType<unknown>, TContext = unknown>(
 > => {
   return useMutation(getMarkReadMutationOptions(options), queryClient)
 }
+/**
+ * 채팅방 헤더에 쓰는 이름/장소/인원수/참여자 닉네임을 반환한다.
+ * @summary 채팅방 상세
+ */
+export const getRoom = (
+  roomId: number,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ApiResponseChatRoomDetailResponse>(
+    { url: `/api/chat/rooms/${roomId}`, method: 'GET', signal },
+    options,
+  )
+}
+
+export const getGetRoomQueryKey = (roomId: number) => {
+  return [`/api/chat/rooms/${roomId}`] as const
+}
+
+export const getGetRoomQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  roomId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoom>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetRoomQueryKey(roomId)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRoom>>> = ({ signal }) =>
+    getRoom(roomId, requestOptions, signal)
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: roomId !== null && roomId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getRoom>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+}
+
+export type GetRoomQueryResult = NonNullable<Awaited<ReturnType<typeof getRoom>>>
+export type GetRoomQueryError = ErrorType<unknown>
+
+export function useGetRoom<
+  TData = Awaited<ReturnType<typeof getRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  roomId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoom>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRoom>>,
+          TError,
+          Awaited<ReturnType<typeof getRoom>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRoom<
+  TData = Awaited<ReturnType<typeof getRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  roomId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoom>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRoom>>,
+          TError,
+          Awaited<ReturnType<typeof getRoom>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetRoom<
+  TData = Awaited<ReturnType<typeof getRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  roomId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoom>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 채팅방 상세
+ */
+
+export function useGetRoom<
+  TData = Awaited<ReturnType<typeof getRoom>>,
+  TError = ErrorType<unknown>,
+>(
+  roomId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getRoom>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetRoomQueryOptions(roomId, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  return withQueryKey(query, queryOptions.queryKey)
+}
+
 /**
  * 커서(before) 기준 이전 메시지를 최신순으로 반환한다.
  * @summary 채팅방 메시지 이력
