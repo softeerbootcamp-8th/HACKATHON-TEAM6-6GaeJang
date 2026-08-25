@@ -33,7 +33,7 @@ class ChatMessageRepositoryTest {
 		ChatRoom room = chatRoomRepository.save(ChatRoom.create("방", OffsetDateTime.now()));
 		chatMessageRepository.save(ChatMessage.write(room, 2L, "안녕", OffsetDateTime.now()));
 		chatMessageRepository.save(ChatMessage.systemJoin(room, "누가 들어왔어요", OffsetDateTime.now()));
-		chatMessageRepository.save(ChatMessage.systemMenu(room, "허니콤보 세트", 12000, OffsetDateTime.now()));
+		chatMessageRepository.save(ChatMessage.systemMenu(room, 3L, "허니콤보 세트", 12000, OffsetDateTime.now()));
 
 		long unread = chatMessageRepository.countUnread(room.getId(), 0L, 1L);
 

@@ -1,15 +1,18 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { createFileRoute, Link, useParams } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { LogOut } from 'lucide-react'
 
 import { useMe } from '@/api/generated/auth/auth'
 import { getGetMyRoomsQueryKey, useGetMessages, useGetRoom, useMarkRead } from '@/api/generated/chat/chat'
 import type { ChatMessageResponse } from '@/api/generated/model'
+import { useGetPotByChatRoom, useLeavePot } from '@/api/generated/pot/pot'
 import { requireAuth } from '@/lib/authGuard'
 
 import { DateDivider } from './-components/DateDivider'
 import { MessageBubble } from './-components/MessageBubble'
 import { MessageComposer } from './-components/MessageComposer'
+import { PotAccountBanner } from './-components/PotAccountBanner'
 import { useChatSocket } from './-hooks/useChatSocket'
 import { useUploadChatImage } from './-hooks/useUploadChatImage'
 
@@ -30,11 +33,31 @@ function ChatRoomPage() {
   const roomId = Number(roomIdParam)
 
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
 
   const room = useGetRoom(roomId, { query: { enabled: !!member } })
   const history = useGetMessages(roomId, { size: 50 }, { query: { enabled: !!member } })
+
+  // 배달팟이 아닌 방(수동 생성 등)이면 404가 정상이라 재시도하지 않는다 — 배너/나가기 버튼만 조용히 숨긴다.
+  const pot = useGetPotByChatRoom(roomId, { query: { enabled: !!member, retry: false } })
+  const potData = pot.data?.data
+
+  const leavePot = useLeavePot({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetMyRoomsQueryKey() })
+        void navigate({ to: '/chat' })
+      },
+    },
+  })
+
+  const handleLeave = () => {
+    if (!potData?.potId) return
+    if (!window.confirm('배달팟에서 나가시겠어요? 이 채팅방을 더 이상 볼 수 없어요.')) return
+    leavePot.mutate({ potId: potData.potId })
+  }
 
   const nicknameById = new Map(
     (room.data?.data?.members ?? []).map((m) => [m.memberId, m.nickname]),
@@ -104,19 +127,34 @@ function ChatRoomPage() {
 
   return (
     <main aria-label={roomName} className="mx-auto flex h-dvh max-w-md flex-col">
-      <header className="flex items-center gap-2 border-b px-4 py-3">
-        <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
-          ←
-        </Link>
-        <div className="min-w-0">
-          <h1 className="truncate font-semibold">{roomName}</h1>
-          {subtitle && <p className="text-muted-fg truncate text-xs">{subtitle}</p>}
+      <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
+            ←
+          </Link>
+          <div className="min-w-0">
+            <h1 className="truncate font-semibold">{roomName}</h1>
+            {subtitle && <p className="text-muted-fg truncate text-xs">{subtitle}</p>}
+          </div>
         </div>
+        {potData && !potData.isHost && (
+          <button
+            type="button"
+            onClick={handleLeave}
+            disabled={leavePot.isPending}
+            aria-label="배달팟 나가기"
+            className="text-muted-fg hover:text-down shrink-0 disabled:opacity-50"
+          >
+            <LogOut className="size-5" />
+          </button>
+        )}
       </header>
 
-      {(error ?? uploadImage.error?.message) && (
+      {potData?.account && <PotAccountBanner account={potData.account} />}
+
+      {(error ?? uploadImage.error?.message ?? leavePot.error?.message) && (
         <p role="alert" className="text-down bg-muted px-4 py-2 text-center text-xs">
-          {error ?? uploadImage.error?.message}
+          {error ?? uploadImage.error?.message ?? leavePot.error?.message}
         </p>
       )}
 
