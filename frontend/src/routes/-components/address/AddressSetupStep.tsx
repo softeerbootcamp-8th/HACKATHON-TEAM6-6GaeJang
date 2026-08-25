@@ -165,7 +165,9 @@ export function AddressSetupStep({
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    // 앱 전체가 393px 모바일 셸이다. 부모 화면이 감싸주길 기대하지 않고 스스로 폭을 잡는다 —
+    // 홈·팟 만들기는 이 화면을 자기 <main> 셸 바깥에서 전체화면으로 띄우기 때문이다.
+    <div className="bg-bg mx-auto flex min-h-dvh max-w-[393px] flex-col shadow-xl">
       {/* 헤더 */}
       <header className="flex h-14 items-center justify-between border-b border-border px-4">
         <button

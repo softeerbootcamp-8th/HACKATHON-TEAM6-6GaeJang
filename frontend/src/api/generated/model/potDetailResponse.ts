@@ -25,6 +25,10 @@ export interface PotDetailResponse {
   description?: string
   /** 만날 장소 */
   meetingPlace?: string
+  /** 만날 장소 도로명 주소. 이 필드가 붙기 전 팟은 null */
+  meetingRoadAddress?: string
+  /** 만날 장소 지번 주소. 이 필드가 붙기 전 팟은 null */
+  meetingJibunAddress?: string
   /** 모집 마감시간 */
   deadline?: string
   /** 최소주문금액(원) */

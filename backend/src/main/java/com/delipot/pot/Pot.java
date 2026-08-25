@@ -89,9 +89,29 @@ public class Pot {
 	@Column(nullable = false, length = 500)
 	private String storeUrl;
 
-	/** 배달을 받아 나눌 장소. 사람이 읽는 텍스트("○○오피스텔 1층 로비"). */
+	/**
+	 * 배달을 받아 나눌 장소의 표시용 주소. 카카오맵에서 고른 도로명 주소가 그대로 들어온다.
+	 *
+	 * <p>{@code Member}의 {@code address}와 같은 자리다 — 총대가 회원가입 때와 똑같은
+	 * 지도 화면에서 핀을 찍어 만든다. 그래서 도로명/지번을 아래에 나란히 두고,
+	 * 화면에 한 줄만 보여줄 때는 이 값을 쓴다.
+	 */
 	@Column(nullable = false, length = 200)
 	private String meetingPlace;
+
+	/**
+	 * 만날 장소의 도로명 주소. 카카오 역지오코딩 결과를 그대로 저장한다.
+	 *
+	 * <p>{@code meetingPlace}와 값이 겹칠 수 있는데도 따로 두는 이유는, 좌표만 있는 산·공터처럼
+	 * 도로명이 없는 지점이 있어 {@code meetingPlace}가 지번으로 채워지는 경우가 있어서다.
+	 * nullable인 이유는 이 필드가 붙기 전에 만들어진 팟이 null로 남기 때문이다.
+	 */
+	@Column(length = 200)
+	private String meetingRoadAddress;
+
+	/** 만날 장소의 지번 주소. 도로명을 모르는 사람에게 보조로 보여준다. nullable 이유는 위와 같다. */
+	@Column(length = 200)
+	private String meetingJibunAddress;
 
 	@Column(nullable = false, precision = COORDINATE_PRECISION, scale = COORDINATE_SCALE)
 	private BigDecimal latitude;
@@ -143,7 +163,8 @@ public class Pot {
 
 	@Builder
 	private Pot(Long hostId, String title, String description, String storeName, String storeUrl,
-		String meetingPlace, BigDecimal latitude, BigDecimal longitude,
+		String meetingPlace, String meetingRoadAddress, String meetingJibunAddress,
+		BigDecimal latitude, BigDecimal longitude,
 		int capacity, int minOrderAmount, OffsetDateTime deadline,
 		String bankName, String accountNumber, String accountHolder) {
 		this.hostId = hostId;
@@ -152,6 +173,8 @@ public class Pot {
 		this.storeName = storeName;
 		this.storeUrl = storeUrl;
 		this.meetingPlace = meetingPlace;
+		this.meetingRoadAddress = meetingRoadAddress;
+		this.meetingJibunAddress = meetingJibunAddress;
 		this.latitude = latitude;
 		this.longitude = longitude;
 		this.capacity = capacity;

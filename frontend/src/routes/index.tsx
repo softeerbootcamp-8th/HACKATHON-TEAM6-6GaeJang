@@ -3,11 +3,13 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Plus, Search } from 'lucide-react'
 
-import { useMe } from '@/api/generated/auth/auth'
+import { getMeQueryKey, useMe, useUpdateProfile } from '@/api/generated/auth/auth'
 import { getGetPotsQueryKey, useCompletePot, useGetPots } from '@/api/generated/pot/pot'
 import type { PotSummaryResponse } from '@/api/generated/model'
 import { requireAuth } from '@/lib/authGuard'
 
+import { AddressSetupStep } from './-components/address/AddressSetupStep'
+import type { SelectedLocation } from './-components/address/KakaoMapPicker'
 import { MobileBottomNav } from './-components/MobileBottomNav'
 import { PotCard } from './-components/PotCard'
 import { PotDetailSheet } from './-components/PotDetailSheet'
@@ -21,6 +23,7 @@ function HomePage() {
   const [keyword, setKeyword] = useState('')
   const [actionError, setActionError] = useState('')
   const [openPotId, setOpenPotId] = useState<number | null>(null)
+  const [addressPickerOpen, setAddressPickerOpen] = useState(false)
   const queryClient = useQueryClient()
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
@@ -31,6 +34,48 @@ function HomePage() {
       onError: (error) => setActionError(error.message),
     },
   })
+
+  // 주소를 바꾸면 회원 주소 자체가 바뀐다. 목록의 300m 반경 중심을 서버가 회원 좌표로 잡기
+  // 때문에(PotService.findPots), 헤더에서 주소를 고치는 것이 곧 조회 위치를 옮기는 것이다.
+  const saveAddress = useUpdateProfile({
+    mutation: {
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getMeQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getGetPotsQueryKey() }),
+        ])
+        setAddressPickerOpen(false)
+      },
+      onError: (error) => {
+        setActionError(error.message)
+        setAddressPickerOpen(false)
+      },
+    },
+  })
+
+  const handleAddressComplete = (location: SelectedLocation) => {
+    saveAddress.mutate({
+      data: {
+        address: location.address,
+        roadAddress: location.roadAddress,
+        jibunAddress: location.jibunAddress,
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+    })
+  }
+
+  if (addressPickerOpen) {
+    return (
+      <AddressSetupStep
+        onBack={() => setAddressPickerOpen(false)}
+        onComplete={handleAddressComplete}
+        isSubmitting={saveAddress.isPending}
+        confirmLabel="이 위치로 설정"
+        submittingLabel="저장 중…"
+      />
+    )
+  }
 
   const data = pots.data?.data
   const normalizedKeyword = keyword.trim().toLocaleLowerCase('ko-KR')
@@ -52,7 +97,12 @@ function HomePage() {
       <div className="relative h-full">
         <div className="h-full overflow-y-auto px-5 pt-[max(28px,env(safe-area-inset-top))] pb-32">
           <header className="bg-bg sticky top-0 z-20 -mx-5 px-5 pb-4">
-            <button type="button" className="flex items-center gap-2 py-2 text-[15px] font-bold">
+            <button
+              type="button"
+              onClick={() => setAddressPickerOpen(true)}
+              aria-label="내 위치 변경"
+              className="flex items-center gap-2 py-2 text-[15px] font-bold"
+            >
               {member?.address || member?.roadAddress || '주소를 설정해주세요'}
               <ChevronDown className="fill-fg size-4" />
             </button>
