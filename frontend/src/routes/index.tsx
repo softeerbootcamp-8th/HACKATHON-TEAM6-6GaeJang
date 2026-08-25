@@ -1,14 +1,15 @@
 import { useState, type ReactNode } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Plus, Search } from 'lucide-react'
+import { ChevronDown, Plus, Search, X } from 'lucide-react'
 
+import type { PotSummaryResponse } from '@/api/generated/model'
 import { getMeQueryKey, useMe, useUpdateProfile } from '@/api/generated/auth/auth'
 import { getGetPotsQueryKey, useCompletePot, useGetPots } from '@/api/generated/pot/pot'
-import type { PotSummaryResponse } from '@/api/generated/model'
 import { formatLocalAddress } from '@/lib/addressFormatter'
 import { requireAuth } from '@/lib/authGuard'
 
+import { useDebouncedValue } from './-hooks/useDebouncedValue'
 import { AddressSetupStep } from './-components/address/AddressSetupStep'
 import type { SelectedLocation } from './-components/address/KakaoMapPicker'
 import { MobileBottomNav } from './-components/MobileBottomNav'
@@ -28,12 +29,23 @@ function HomePage() {
   const navigate = useNavigate()
   const { openPotId } = Route.useSearch()
   const [keyword, setKeyword] = useState('')
+  const [isComposingKeyword, setIsComposingKeyword] = useState(false)
   const [actionError, setActionError] = useState('')
   const [addressPickerOpen, setAddressPickerOpen] = useState(false)
   const queryClient = useQueryClient()
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
-  const pots = useGetPots({ request: {} }, { query: { enabled: !!member } })
+  const debouncedKeyword = useDebouncedValue(keyword.trim(), 300, !isComposingKeyword)
+  const effectiveKeyword = keyword.trim() ? debouncedKeyword : ''
+  const pots = useGetPots(
+    { keyword: effectiveKeyword || undefined },
+    {
+      query: {
+        enabled: !!member,
+        placeholderData: (previousData) => previousData,
+      },
+    },
+  )
   const complete = useCompletePot({
     mutation: {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetPotsQueryKey() }),
@@ -84,21 +96,14 @@ function HomePage() {
   }
 
   const data = pots.data?.data
-  const normalizedKeyword = keyword.trim().toLocaleLowerCase('ko-KR')
-  const filterPots = (items?: PotSummaryResponse[]) =>
-    (items ?? []).filter((pot) =>
-      [pot.storeName, pot.title, pot.description].some((value) =>
-        value?.toLocaleLowerCase('ko-KR').includes(normalizedKeyword),
-      ),
-    )
-  const hosted = filterPots(data?.hosted)
-  const joined = filterPots(data?.joined)
-  const all = filterPots(data?.all)
+  const hosted = data?.hosted ?? []
+  const joined = data?.joined ?? []
+  const all = data?.all ?? []
 
   return (
     <main aria-label="배달팟 홈" className="app-shell">
       <div className="relative flex h-full flex-col">
-        <header className="bg-bg z-20 shrink-0 px-5 pt-[max(28px,env(safe-area-inset-top))] pb-2">
+        <header className="bg-bg z-20 shrink-0 px-5 pb-2">
           <button
             type="button"
             onClick={() => setAddressPickerOpen(true)}
@@ -110,17 +115,35 @@ function HomePage() {
             ) || '주소를 설정해주세요'}
             <ChevronDown className="fill-fg size-4" />
           </button>
-          <label className="bg-surface text-muted-fg mt-2 flex h-12 items-center gap-3 rounded-xl px-3">
+          <div className="bg-surface text-muted-fg mt-2 flex h-12 items-center gap-3 rounded-xl px-3">
             <Search className="size-5" />
             <input
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
+              onCompositionStart={() => setIsComposingKeyword(true)}
+              onCompositionEnd={(event) => {
+                setKeyword(event.currentTarget.value)
+                setIsComposingKeyword(false)
+              }}
               placeholder="지금 먹고 싶은 음식이 있나요?"
-              aria-label="가게 검색"
+              aria-label="가게명 검색"
               maxLength={100}
               className="text-fg placeholder:text-muted-fg w-full bg-transparent text-base outline-none"
             />
-          </label>
+            {keyword && (
+              <button
+                type="button"
+                onClick={() => {
+                  setKeyword('')
+                  setIsComposingKeyword(false)
+                }}
+                aria-label="검색어 지우기"
+                className="hover:bg-muted hover:text-fg flex size-8 shrink-0 items-center justify-center rounded-full transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-32">
@@ -165,9 +188,15 @@ function HomePage() {
               />
               {hosted.length + joined.length + all.length === 0 && (
                 <StateMessage>
-                  현재 진행중인 배달팟이 없어요
-                  <br />
-                  새로운 배달팟을 열어보세요!
+                  {effectiveKeyword ? (
+                    '검색 결과가 없어요'
+                  ) : (
+                    <>
+                      현재 진행중인 배달팟이 없어요
+                      <br />
+                      새로운 배달팟을 열어보세요!
+                    </>
+                  )}
                 </StateMessage>
               )}
             </div>

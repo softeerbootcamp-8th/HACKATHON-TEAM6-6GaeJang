@@ -5,8 +5,12 @@
  * 육개장(Softeer 8기 6팀) 해커톤 프로젝트 Delipot API
  * OpenAPI spec version: v1
  */
-import type { PotListRequest } from './potListRequest'
 
 export type GetPotsParams = {
-  request: PotListRequest
+  /**
+   * 가게 이름 검색어. 비우면 전체
+   * @minLength 0
+   * @maxLength 100
+   */
+  keyword?: string
 }

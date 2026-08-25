@@ -1,5 +1,6 @@
 package com.delipot.pot;
 
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -68,7 +69,7 @@ public class PotController {
 	@GetMapping
 	public ApiResponse<PotListResponse> getPots(
 		@LoginMember Long memberId,
-		@Valid @ModelAttribute PotListRequest request
+		@Valid @ParameterObject @ModelAttribute PotListRequest request
 	) {
 		return ApiResponse.ok(potService.findPots(memberId, request));
 	}

@@ -57,7 +57,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * @summary 홈 목록 조회
  */
 export const getPots = (
-  params: GetPotsParams,
+  params?: GetPotsParams,
   options?: SecondParameter<typeof customInstance>,
   signal?: AbortSignal,
 ) => {
@@ -75,7 +75,7 @@ export const getGetPotsQueryOptions = <
   TData = Awaited<ReturnType<typeof getPots>>,
   TError = ErrorType<unknown>,
 >(
-  params: GetPotsParams,
+  params?: GetPotsParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPots>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
@@ -102,7 +102,7 @@ export function useGetPots<
   TData = Awaited<ReturnType<typeof getPots>>,
   TError = ErrorType<unknown>,
 >(
-  params: GetPotsParams,
+  params: undefined | GetPotsParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPots>>, TError, TData>> &
       Pick<
@@ -121,7 +121,7 @@ export function useGetPots<
   TData = Awaited<ReturnType<typeof getPots>>,
   TError = ErrorType<unknown>,
 >(
-  params: GetPotsParams,
+  params?: GetPotsParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPots>>, TError, TData>> &
       Pick<
@@ -140,7 +140,7 @@ export function useGetPots<
   TData = Awaited<ReturnType<typeof getPots>>,
   TError = ErrorType<unknown>,
 >(
-  params: GetPotsParams,
+  params?: GetPotsParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPots>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>
@@ -155,7 +155,7 @@ export function useGetPots<
   TData = Awaited<ReturnType<typeof getPots>>,
   TError = ErrorType<unknown>,
 >(
-  params: GetPotsParams,
+  params?: GetPotsParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPots>>, TError, TData>>
     request?: SecondParameter<typeof customInstance>

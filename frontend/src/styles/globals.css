@@ -53,17 +53,6 @@
     overscroll-behavior: none;
   }
 
-  /* iOS PWA가 내부 스크롤 레이어를 합성할 때 상태바 안전 영역에 내용이 비치는 현상을 막는다. */
-  .app-shell::before {
-    content: '';
-    position: absolute;
-    inset: 0 0 auto;
-    z-index: 40;
-    height: max(28px, env(safe-area-inset-top));
-    background-color: var(--color-bg);
-    pointer-events: none;
-  }
-
   .sheet-slide-up {
     animation: sheet-slide-up 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
