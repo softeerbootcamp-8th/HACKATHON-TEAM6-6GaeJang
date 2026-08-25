@@ -47,6 +47,11 @@
 }
 
 @layer components {
+  .app-shell {
+    @apply bg-bg fixed inset-0 mx-auto w-full max-w-[393px] overflow-hidden shadow-xl;
+    overscroll-behavior: none;
+  }
+
   .sheet-slide-up {
     animation: sheet-slide-up 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }

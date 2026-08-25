@@ -90,35 +90,33 @@ function HomePage() {
   const all = filterPots(data?.all)
 
   return (
-    <main
-      aria-label="배달팟 홈"
-      className="bg-bg mx-auto h-dvh max-w-[393px] overflow-hidden shadow-xl"
-    >
-      <div className="relative h-full">
-        <div className="h-full overflow-y-auto px-5 pt-[max(28px,env(safe-area-inset-top))] pb-32">
-          <header className="bg-bg sticky top-0 z-20 -mx-5 px-5 pb-4">
-            <button
-              type="button"
-              onClick={() => setAddressPickerOpen(true)}
-              aria-label="내 위치 변경"
-              className="flex items-center gap-2 py-2 text-[15px] font-bold"
-            >
-              {member?.address || member?.roadAddress || '주소를 설정해주세요'}
-              <ChevronDown className="fill-fg size-4" />
-            </button>
-            <label className="bg-surface text-muted-fg mt-3 flex h-12 items-center gap-3 rounded-xl px-3">
-              <Search className="size-5" />
-              <input
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                placeholder="지금 먹고 싶은 음식이 있나요?"
-                aria-label="가게 검색"
-                maxLength={100}
-                className="text-fg placeholder:text-muted-fg w-full bg-transparent text-[15px] outline-none"
-              />
-            </label>
-            <p className="text-muted-fg mt-6 text-center text-xs">내 주변 300m 내의 배달팟이에요</p>
-          </header>
+    <main aria-label="배달팟 홈" className="app-shell">
+      <div className="relative flex h-full flex-col">
+        <header className="bg-bg z-20 shrink-0 px-5 pt-[max(28px,env(safe-area-inset-top))] pb-2">
+          <button
+            type="button"
+            onClick={() => setAddressPickerOpen(true)}
+            aria-label="내 위치 변경"
+            className="flex items-center gap-2 py-2 text-[15px] font-bold"
+          >
+            {member?.address || member?.roadAddress || '주소를 설정해주세요'}
+            <ChevronDown className="fill-fg size-4" />
+          </button>
+          <label className="bg-surface text-muted-fg mt-2 flex h-12 items-center gap-3 rounded-xl px-3">
+            <Search className="size-5" />
+            <input
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+              placeholder="지금 먹고 싶은 음식이 있나요?"
+              aria-label="가게 검색"
+              maxLength={100}
+              className="text-fg placeholder:text-muted-fg w-full bg-transparent text-base outline-none"
+            />
+          </label>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-32">
+          <p className="text-muted-fg pt-3 text-center text-xs">내 주변 300m 내의 배달팟이에요</p>
 
           {!member && !me.isPending ? (
             <StateMessage>
@@ -134,7 +132,7 @@ function HomePage() {
               {pots.error.message}
             </p>
           ) : (
-            <div className="mt-6 space-y-9">
+            <div className="mt-4 space-y-7">
               {actionError && (
                 <p role="alert" className="text-down text-sm">
                   {actionError}
