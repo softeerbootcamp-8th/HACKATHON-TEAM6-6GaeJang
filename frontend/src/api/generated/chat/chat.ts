@@ -25,6 +25,7 @@ import type {
   ApiResponseChatMessagePageResponse,
   ApiResponseChatRoomResponse,
   ApiResponseListChatRoomSummaryResponse,
+  ApiResponseVoid,
   ChatRoomCreateRequest,
   GetMessagesParams,
 } from '../model'
@@ -242,6 +243,82 @@ export const useCreateRoom = <TError = ErrorType<unknown>, TContext = unknown>(
   TContext
 > => {
   return useMutation(getCreateRoomMutationOptions(options), queryClient)
+}
+/**
+ * 방의 최신 메시지까지 읽음 처리한다(안읽은 개수 초기화).
+ * @summary 채팅방 읽음 처리
+ */
+export const markRead = (
+  roomId: number,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ApiResponseVoid>(
+    { url: `/api/chat/rooms/${roomId}/read`, method: 'PATCH', signal },
+    options,
+  )
+}
+
+export const getMarkReadMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markRead>>,
+    TError,
+    { roomId: number },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markRead>>,
+  TError,
+  { roomId: number },
+  TContext
+> => {
+  const mutationKey = ['markRead']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof markRead>>, { roomId: number }> = (
+    props,
+  ) => {
+    const { roomId } = props ?? {}
+
+    return markRead(roomId, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type MarkReadMutationResult = NonNullable<Awaited<ReturnType<typeof markRead>>>
+
+export type MarkReadMutationError = ErrorType<unknown>
+
+/**
+ * @summary 채팅방 읽음 처리
+ */
+export const useMarkRead = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof markRead>>,
+      TError,
+      { roomId: number },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof markRead>>,
+  TError,
+  { roomId: number },
+  TContext
+> => {
+  return useMutation(getMarkReadMutationOptions(options), queryClient)
 }
 /**
  * 커서(before) 기준 이전 메시지를 최신순으로 반환한다.
