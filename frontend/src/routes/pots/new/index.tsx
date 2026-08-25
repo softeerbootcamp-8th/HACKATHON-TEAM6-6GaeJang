@@ -11,6 +11,7 @@ import type { PotCreateRequest } from '@/api/generated/model'
 import { AddressSetupStep } from '../../-components/address/AddressSetupStep'
 import type { SelectedLocation } from '../../-components/address/KakaoMapPicker'
 import { DeadlineSheet } from './-components/DeadlineSheet'
+import { useStoreNameAutofill } from './-hooks/useStoreNameAutofill'
 
 /** 서버가 요청을 받을 때도 선택한 최소 마감시간이 줄지 않도록 전송 지연만큼 여유를 둔다. */
 const DEADLINE_REQUEST_BUFFER_MS = 15_000
@@ -72,6 +73,12 @@ function NewPotPage() {
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }))
   }
+
+  // 링크를 붙여넣으면 링크만 잘라 넣고 가게명을 자동으로 채운다. 실패하면 손입력 상태로 남는다.
+  const storeName = useStoreNameAutofill({
+    onStoreUrl: (storeUrl) => setField('storeUrl', storeUrl),
+    onStoreName: (value) => setField('storeName', value),
+  })
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
@@ -155,13 +162,18 @@ function NewPotPage() {
               className="form-control"
             />
           </FormField>
-          <FormField label="가게 링크" hint="배달앱 가게 페이지 링크를 복사해서 붙여넣어 주세요">
+          <FormField
+            label="가게 링크"
+            hint="배달앱 공유 버튼으로 복사한 문구를 그대로 붙여넣어도 링크만 들어가요"
+          >
             <input
               required
               type="url"
               maxLength={500}
               value={form.storeUrl}
               onChange={(e) => setField('storeUrl', e.target.value)}
+              onPaste={storeName.handlePaste}
+              onBlur={(e) => storeName.handleBlur(e.target.value)}
               placeholder="배달 앱의 가게 링크를 복사해서 붙여넣어 주세요"
               className="form-control"
             />
@@ -171,10 +183,17 @@ function NewPotPage() {
               required
               maxLength={100}
               value={form.storeName}
-              onChange={(e) => setField('storeName', e.target.value)}
+              onChange={(e) => {
+                storeName.handleManualEdit()
+                setField('storeName', e.target.value)
+              }}
               placeholder="가게명을 입력해주세요"
               className="form-control"
             />
+            {/* 붙여넣기 뒤 비동기로 바뀌는 안내다. 화면을 보지 않는 사용자에게도 읽히게 알린다. */}
+            <span aria-live="polite" className="text-muted-fg/70 mt-2 block text-xs">
+              {storeName.hint}
+            </span>
           </FormField>
           <FormField label="만날 장소" hint="지도에서 배달을 받아 나눌 지점을 찍어주세요">
             <button
