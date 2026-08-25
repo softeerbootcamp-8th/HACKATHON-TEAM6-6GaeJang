@@ -21,11 +21,17 @@ dependencies {
 	// Boot 4 부터 web 스타터가 spring-boot-starter-webmvc 로 갈렸다 (webflux 와 분리)
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// 세션 저장소(Redis). 커넥션 팩토리는 지연 생성이라, Redis 없이 뜨는 h2 프로파일에서도
+	// InMemorySessionStore 만 쓰면 컨텍스트 로딩에는 영향 없다.
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
 	// 프론트 Orval이 소비하는 OpenAPI 스펙(/v3/api-docs) 제공. 3.x 가 Boot 4 대응 라인이다.
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
+
+	// 비밀번호 해싱. Spring Security 를 끌어오지 않는 순수 BCrypt 라이브러리.
+	implementation 'at.favre.lib:bcrypt:0.10.2'
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'

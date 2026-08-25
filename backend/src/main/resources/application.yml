@@ -14,6 +14,15 @@ app:
   version: 0.0.1-SNAPSHOT
   cors:
     allowed-origins: http://localhost:5173
+  session:
+    cookie-name: SID
+    # 세션 슬라이딩 만료(초). 인증된 요청마다 갱신. 자동 로그인은 remember-me 가 담당한다.
+    ttl-seconds: 1800
+    # 로컬은 http 라 false, prod 프로파일에서 true 로 덮어써 HTTPS 에서만 쿠키가 실리게 한다.
+    cookie-secure: false
+    # remember-me(자동 로그인) 토큰 — 세션이 만료돼도 이걸로 조용히 새 세션을 발급한다.
+    remember-cookie-name: RID
+    remember-ttl-seconds: 1209600  # 14일
 
 # 프론트 Orval이 읽는 스펙 경로. Swagger UI: http://localhost:8080/swagger-ui.html
 springdoc:
@@ -47,6 +56,11 @@ spring:
       hibernate:
         format_sql: true
     open-in-view: false
+  data:
+    redis:
+      host: localhost
+      # docker compose 의 redis 를 호스트 6380 으로 매핑했다.
+      port: 6380
 logging:
   level:
     org.hibernate.SQL: debug
@@ -82,6 +96,15 @@ spring:
       # 운영에서는 스키마를 코드가 바꾸지 못하게 한다.
       ddl-auto: validate
     open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # 필요 시에만 주입. 없으면 인증 없이 접속.
+      password: ${REDIS_PASSWORD:}
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  session:
+    # 운영은 HTTPS 라 쿠키에 Secure 를 강제한다.
+    cookie-secure: true
