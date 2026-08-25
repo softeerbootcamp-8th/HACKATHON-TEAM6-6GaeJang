@@ -1,13 +1,14 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { ChevronDown, Minus, Plus, X } from 'lucide-react'
+import { ChevronDown, MapPin, Minus, Plus, X } from 'lucide-react'
 
-import { useMe } from '@/api/generated/auth/auth'
 import { useCreatePot } from '@/api/generated/pot/pot'
 import { formatAccountNumber } from '@/lib/accountNumberFormatter'
 import { requireAuth } from '@/lib/authGuard'
 import type { PotCreateRequest } from '@/api/generated/model'
 
+import { AddressSetupStep } from '../../-components/address/AddressSetupStep'
+import type { SelectedLocation } from '../../-components/address/KakaoMapPicker'
 import { DeadlineSheet } from './-components/DeadlineSheet'
 
 export const Route = createFileRoute('/pots/new/')({
@@ -15,13 +16,16 @@ export const Route = createFileRoute('/pots/new/')({
   component: NewPotPage,
 })
 
-type FormState = Omit<PotCreateRequest, 'latitude' | 'longitude' | 'deadline'>
+/** 만날 장소는 지도에서 고른 좌표까지 한 덩어리로 움직이므로 폼 상태에서 분리한다. */
+type FormState = Omit<
+  PotCreateRequest,
+  'latitude' | 'longitude' | 'deadline' | 'meetingPlace' | 'meetingRoadAddress' | 'meetingJibunAddress'
+>
 
 const emptyForm: FormState = {
   title: '',
   storeName: '',
   storeUrl: '',
-  meetingPlace: '',
   capacity: 2,
   minOrderAmount: 0,
   description: '',
@@ -32,9 +36,9 @@ const emptyForm: FormState = {
 
 function NewPotPage() {
   const navigate = useNavigate()
-  const me = useMe({ query: { retry: false } })
-  const member = me.data?.data
   const [form, setForm] = useState(emptyForm)
+  const [meetingLocation, setMeetingLocation] = useState<SelectedLocation | null>(null)
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false)
   const [hours, setHours] = useState(8)
   const [minutes, setMinutes] = useState(0)
   const [deadlineLabel, setDeadlineLabel] = useState('')
@@ -58,8 +62,8 @@ function NewPotPage() {
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
     setErrorMessage('')
-    if (member?.latitude == null || member.longitude == null) {
-      setErrorMessage('팟을 만들기 전에 내 주소를 설정해주세요.')
+    if (!meetingLocation) {
+      setErrorMessage('만날 장소를 지도에서 선택해주세요.')
       return
     }
     if (!deadlineLabel) {
@@ -67,15 +71,32 @@ function NewPotPage() {
       return
     }
     const deadline = new Date(Date.now() + (hours * 60 + minutes) * 60_000).toISOString()
+    // 좌표는 반드시 만날 장소의 것이어야 한다 — 회원 집 좌표를 쓰면 홈의 300m 반경 판정이
+    // 실제 수령 장소와 어긋나, 근처 사람에게 안 보이거나 먼 사람에게 보인다.
     createPot.mutate({
       data: {
         ...form,
-        meetingPlace: form.meetingPlace || member.address || member.roadAddress || '',
-        latitude: member.latitude,
-        longitude: member.longitude,
+        meetingPlace: meetingLocation.address,
+        meetingRoadAddress: meetingLocation.roadAddress,
+        meetingJibunAddress: meetingLocation.jibunAddress,
+        latitude: meetingLocation.latitude,
+        longitude: meetingLocation.longitude,
         deadline,
       },
     })
+  }
+
+  if (locationPickerOpen) {
+    return (
+      <AddressSetupStep
+        onBack={() => setLocationPickerOpen(false)}
+        onComplete={(location) => {
+          setMeetingLocation(location)
+          setLocationPickerOpen(false)
+        }}
+        confirmLabel="이 위치로 설정"
+      />
+    )
   }
 
   return (
@@ -132,14 +153,22 @@ function NewPotPage() {
               className="form-control"
             />
           </FormField>
-          <FormField label="만날 장소">
-            <input
-              required
-              maxLength={200}
-              value={form.meetingPlace || member?.address || member?.roadAddress || ''}
-              onChange={(e) => setField('meetingPlace', e.target.value)}
-              className="form-control"
-            />
+          <FormField label="만날 장소" hint="지도에서 배달을 받아 나눌 지점을 찍어주세요">
+            <button
+              type="button"
+              onClick={() => setLocationPickerOpen(true)}
+              className={`form-control flex items-center gap-2 text-left ${meetingLocation ? 'text-fg' : 'text-muted-fg'}`}
+            >
+              <MapPin className="text-primary size-5 shrink-0" />
+              <span className="truncate">
+                {meetingLocation?.address || '지도에서 만날 장소를 선택해주세요'}
+              </span>
+            </button>
+            {meetingLocation?.jibunAddress && (
+              <span className="text-muted-fg/70 mt-2 block text-xs">
+                {meetingLocation.jibunAddress}
+              </span>
+            )}
           </FormField>
           <FormField label="배달팟 인원">
             <div className="bg-surface flex h-14 items-center justify-between rounded-xl px-3">

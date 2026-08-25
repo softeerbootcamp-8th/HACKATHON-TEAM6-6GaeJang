@@ -130,6 +130,8 @@ class PotServiceTest {
 			"호백반점",
 			"https://web.coupangeats.com/share?storeId=781313",
 			"역삼 스타빌 1층 로비",
+			"서울 강남구 테헤란로 132",
+			"서울 강남구 역삼동 823",
 			new BigDecimal("37.5006000"),
 			new BigDecimal("127.0366000"),
 			capacity,
@@ -157,6 +159,47 @@ class PotServiceTest {
 		assertThat(saved.getCapacity()).isEqualTo(4);
 		assertThat(response.status()).isEqualTo(PotStatus.ACTIVE);
 		assertThat(response.currentMemberCount()).isEqualTo(1);
+	}
+
+	/**
+	 * 좌표는 반드시 만날 장소의 것이어야 한다. 예전 프론트는 회원 집 좌표를 실어 보냈는데,
+	 * 그러면 홈의 300m 반경 판정이 실제 수령 장소와 어긋나 근처 사람에게 팟이 안 보인다.
+	 */
+	@Test
+	@DisplayName("만날 장소는 표시 주소·도로명·지번·좌표가 요청값 그대로 저장된다")
+	void createStoresMeetingAddressAsSent() {
+		givenSaveEchoes();
+
+		potService().create(HOST_ID, request(CURRENT.plusHours(1)));
+
+		Pot saved = capturedPot();
+		assertThat(saved.getMeetingPlace()).isEqualTo("역삼 스타빌 1층 로비");
+		assertThat(saved.getMeetingRoadAddress()).isEqualTo("서울 강남구 테헤란로 132");
+		assertThat(saved.getMeetingJibunAddress()).isEqualTo("서울 강남구 역삼동 823");
+		assertThat(saved.getLatitude()).isEqualByComparingTo("37.5006000");
+		assertThat(saved.getLongitude()).isEqualByComparingTo("127.0366000");
+	}
+
+	/** 지도 선택이 붙기 전에 만들어진 팟은 도로명/지번이 없다. 조회가 이걸로 깨지면 안 된다. */
+	@Test
+	@DisplayName("도로명·지번 없이 만들어도 저장된다 — 기존 팟 호환")
+	void createAllowsMissingRoadAndJibunAddress() {
+		givenSaveEchoes();
+
+		PotCreateRequest legacy = new PotCreateRequest(
+			"역삼역 호백반점 같이 시켜요", "호백반점",
+			"https://web.coupangeats.com/share?storeId=781313",
+			"역삼 스타빌 1층 로비", null, null,
+			new BigDecimal("37.5006000"), new BigDecimal("127.0366000"),
+			4, 20000, CURRENT.plusHours(1), null,
+			"카카오뱅크", "3333-01-1234567", "김하나");
+
+		potService().create(HOST_ID, legacy);
+
+		Pot saved = capturedPot();
+		assertThat(saved.getMeetingRoadAddress()).isNull();
+		assertThat(saved.getMeetingJibunAddress()).isNull();
+		assertThat(saved.getMeetingPlace()).isEqualTo("역삼 스타빌 1층 로비");
 	}
 
 	@Test

@@ -94,6 +94,8 @@ public class PotService {
 			.storeName(request.storeName())
 			.storeUrl(request.storeUrl())
 			.meetingPlace(request.meetingPlace())
+			.meetingRoadAddress(request.meetingRoadAddress())
+			.meetingJibunAddress(request.meetingJibunAddress())
 			.latitude(request.latitude())
 			.longitude(request.longitude())
 			.capacity(request.capacity())

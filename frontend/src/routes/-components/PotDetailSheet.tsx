@@ -167,10 +167,18 @@ function PotOverview({ detail, onJoin }: { detail: PotDetailResponse; onJoin: ()
               <ExternalLink className="size-3.5" />
             </a>
           </div>
-          <div className="flex items-center gap-3">
-            <MapPin className="text-muted-fg/50 size-5" />
-            <span className="text-muted-fg w-14">만날 장소</span>
-            <span className="font-semibold">{detail.meetingPlace}</span>
+          <div className="flex items-start gap-3">
+            <MapPin className="text-muted-fg/50 mt-0.5 size-5 shrink-0" />
+            <span className="text-muted-fg w-14 shrink-0">만날 장소</span>
+            <div className="min-w-0">
+              <span className="font-semibold">{detail.meetingPlace}</span>
+              {/* 지번은 있을 때만 — 지도 선택이 붙기 전에 만들어진 팟은 null이다. */}
+              {detail.meetingJibunAddress && (
+                <span className="text-muted-fg/70 mt-0.5 block text-xs">
+                  {detail.meetingJibunAddress}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

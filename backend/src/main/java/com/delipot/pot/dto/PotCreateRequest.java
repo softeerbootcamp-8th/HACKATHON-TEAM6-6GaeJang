@@ -38,6 +38,14 @@ public record PotCreateRequest(
 	@Size(max = 200, message = "만날 장소는 200자 이하여야 합니다.")
 	String meetingPlace,
 
+	@Schema(description = "만날 장소 도로명 주소. 지도에서 고른 값을 그대로 보낸다", example = "서울 강남구 학동로 171")
+	@Size(max = 200, message = "도로명 주소는 200자 이하여야 합니다.")
+	String meetingRoadAddress,
+
+	@Schema(description = "만날 장소 지번 주소", example = "서울 강남구 논현동 58-3")
+	@Size(max = 200, message = "지번 주소는 200자 이하여야 합니다.")
+	String meetingJibunAddress,
+
 	@Schema(description = "만날 장소 위도", example = "37.5006")
 	@NotNull(message = "위도는 필수입니다.")
 	@DecimalMin(value = "-90.0", message = "위도는 -90 이상이어야 합니다.")

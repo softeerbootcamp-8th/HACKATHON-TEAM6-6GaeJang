@@ -36,6 +36,12 @@ public record PotDetailResponse(
 	@Schema(description = "만날 장소", example = "동진시장 사거리 편의점 앞")
 	String meetingPlace,
 
+	@Schema(description = "만날 장소 도로명 주소. 이 필드가 붙기 전 팟은 null", example = "서울 강남구 학동로 171")
+	String meetingRoadAddress,
+
+	@Schema(description = "만날 장소 지번 주소. 이 필드가 붙기 전 팟은 null", example = "서울 강남구 논현동 58-3")
+	String meetingJibunAddress,
+
 	@Schema(description = "모집 마감시간")
 	OffsetDateTime deadline,
 
@@ -95,7 +101,8 @@ public record PotDetailResponse(
 
 		return new PotDetailResponse(
 			pot.getId(), pot.getTitle(), pot.getStoreName(), pot.getStoreUrl(), pot.getDescription(),
-			pot.getMeetingPlace(), pot.getDeadline(), pot.getMinOrderAmount(),
+			pot.getMeetingPlace(), pot.getMeetingRoadAddress(), pot.getMeetingJibunAddress(),
+			pot.getDeadline(), pot.getMinOrderAmount(),
 			pot.getCurrentMemberCount(), pot.getCapacity(), pot.getStatus(), pot.getChatRoomId(),
 			hostNickname, hostPotCount, isHost, isJoined, isDeadlinePassed, members, account
 		);

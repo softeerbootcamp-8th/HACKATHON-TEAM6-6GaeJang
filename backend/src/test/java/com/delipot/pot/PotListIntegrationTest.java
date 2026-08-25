@@ -359,6 +359,7 @@ class PotListIntegrationTest {
 		var created = potService.create(meId, new com.delipot.pot.dto.PotCreateRequest(
 			"교촌 치킨 연남점 같이 시켜요", "교촌 치킨 연남점",
 			"https://web.coupangeats.com/share?storeId=1", "동진시장 사거리 편의점 앞",
+			"서울 마포구 동교로 123", "서울 마포구 연남동 227-15",
 			MY_LAT, MY_LNG, 4, 20000, CURRENT.plusHours(1), "저녁에 같이 시키실 분",
 			"카카오뱅크", "3333-01-1234567", "김하나"));
 
@@ -378,6 +379,7 @@ class PotListIntegrationTest {
 		var created = potService.create(meId, new com.delipot.pot.dto.PotCreateRequest(
 			"교촌 치킨 연남점 같이 시켜요", "교촌 치킨 연남점",
 			"https://web.coupangeats.com/share?storeId=1", "동진시장 사거리 편의점 앞",
+			"서울 마포구 동교로 123", "서울 마포구 연남동 227-15",
 			MY_LAT, MY_LNG, 4, 20000, CURRENT.plusHours(1), "저녁에 같이 시키실 분",
 			"카카오뱅크", "3333-01-1234567", "김하나"));
 

@@ -36,6 +36,18 @@ export interface PotCreateRequest {
    */
   meetingPlace: string
   /**
+   * 만날 장소 도로명 주소. 지도에서 고른 값을 그대로 보낸다
+   * @minLength 0
+   * @maxLength 200
+   */
+  meetingRoadAddress?: string
+  /**
+   * 만날 장소 지번 주소
+   * @minLength 0
+   * @maxLength 200
+   */
+  meetingJibunAddress?: string
+  /**
    * 만날 장소 위도
    * @minimum -90
    * @maximum 90
