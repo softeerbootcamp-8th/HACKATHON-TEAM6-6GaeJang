@@ -19,6 +19,8 @@ export default defineConfig({
     // /api 는 백엔드로 넘긴다 — 브라우저에서는 동일 오리진이라 CORS 이슈가 없다.
     proxy: {
       '/api': { target: 'http://localhost:8080', changeOrigin: true },
+      // STOMP 핸드셰이크도 동일 오리진으로 넘겨야 세션 쿠키(SameSite=Lax)가 붙는다.
+      '/ws': { target: 'http://localhost:8080', changeOrigin: true, ws: true },
     },
   },
 })
