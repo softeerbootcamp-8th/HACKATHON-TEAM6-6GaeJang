@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -112,5 +113,55 @@ class PotRepositoryIntegrationTest {
 		potRepository.saveAndFlush(pot);
 
 		assertThat(potRepository.existsByHostIdAndStatus(99L, PotStatus.ACTIVE)).isFalse();
+	}
+
+	@Test
+	@DisplayName("countByHostIdAndCountsAsHostExperienceTrue: 참여자 있고 이탈 없이 완료된 팟만 센다")
+	void countByHostIdAndCountsAsHostExperienceTrueCountsOnlyQualifyingPots() {
+		Long hostId = 100L;
+
+		Pot soloComplete = validPot().hostId(hostId).build(); // 참여자 없이 혼자 완료 — 경험치 아님
+		soloComplete.complete();
+
+		Pot leftBeforeComplete = validPot().hostId(hostId).build();
+		leftBeforeComplete.increaseMemberCount();
+		leftBeforeComplete.recordMemberLeft(); // ACTIVE일 때 이탈 발생
+		leftBeforeComplete.complete();
+
+		Pot qualifying = validPot().hostId(hostId).build();
+		qualifying.increaseMemberCount();
+		qualifying.complete();
+
+		// 아직 ACTIVE라 완료 자체가 안 된 팟 — 카운트에서 당연히 빠져야 한다.
+		Pot stillActive = validPot().hostId(hostId).build();
+		stillActive.increaseMemberCount();
+
+		potRepository.saveAll(List.of(soloComplete, leftBeforeComplete, qualifying, stillActive));
+		potRepository.flush();
+
+		assertThat(potRepository.countByHostIdAndCountsAsHostExperienceTrue(hostId)).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("completeAbandoned: 방치된 ACTIVE 팟을 DONE으로 전이시키며 총대 경험치 여부도 함께 확정한다")
+	void completeAbandonedAlsoFreezesHostExperienceFlag() {
+		OffsetDateTime deadline = OffsetDateTime.of(2026, 8, 25, 12, 0, 0, 0, ZoneOffset.ofHours(9));
+
+		Pot abandonedWithParticipant = validPot().hostId(101L).deadline(deadline).build();
+		abandonedWithParticipant.increaseMemberCount();
+		Long withParticipantId = potRepository.saveAndFlush(abandonedWithParticipant).getId();
+
+		Long soloId = potRepository.saveAndFlush(validPot().hostId(102L).deadline(deadline).build()).getId();
+
+		entityManager.clear();
+
+		int updated = potRepository.completeAbandoned(deadline.plusHours(5));
+		entityManager.clear();
+
+		assertThat(updated).isEqualTo(2);
+		assertThat(potRepository.findById(withParticipantId).orElseThrow().getStatus()).isEqualTo(PotStatus.DONE);
+		assertThat(potRepository.findById(soloId).orElseThrow().getStatus()).isEqualTo(PotStatus.DONE);
+		assertThat(potRepository.countByHostIdAndCountsAsHostExperienceTrue(101L)).isEqualTo(1);
+		assertThat(potRepository.countByHostIdAndCountsAsHostExperienceTrue(102L)).isEqualTo(0);
 	}
 }

@@ -52,7 +52,7 @@ export function PotDetailSheet({ potId, onClose }: PotDetailSheetProps) {
       />
       <div
         ref={sheetRef}
-        className={`sheet-slide-up bg-bg absolute inset-x-0 top-[max(20px,env(safe-area-inset-top))] bottom-0 flex flex-col rounded-t-[34px] pt-3 ${
+        className={`sheet-slide-up bg-bg absolute inset-x-0 top-[104px] bottom-0 flex flex-col rounded-t-[34px] pt-3 ${
           drag.isDragging ? '' : 'transition-transform duration-200'
         }`}
         style={{ transform: `translateY(${drag.offset}px)` }}

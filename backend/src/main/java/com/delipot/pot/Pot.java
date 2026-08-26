@@ -148,6 +148,22 @@ public class Pot {
 	private PotStatus status;
 
 	/**
+	 * 팟이 {@code ACTIVE}인 동안 누군가 나간 적이 있는지. 총대는 완료 전엔 나갈 수 없으므로(
+	 * {@link PotService#leave}) 이 시점의 "누군가"는 항상 참여자다.
+	 * "총대 경험" 조건 — 완료 전 이탈이 있었으면 그 팟은 경험치로 치지 않는다 — 판정에만 쓴다.
+	 */
+	@Column(nullable = false)
+	private boolean hasMemberLeft;
+
+	/**
+	 * "총대 N회" 배지에 이 팟을 셀지 여부. {@link #complete()}(수동/자동 모두) 시점에 딱 한 번
+	 * 계산해서 고정한다 — 완료 후 참여자·총대가 나가서 {@code currentMemberCount}가 줄어도
+	 * 이미 확정된 경험치가 흔들리면 안 되기 때문이다.
+	 */
+	@Column(nullable = false)
+	private boolean countsAsHostExperience;
+
+	/**
 	 * 여러 멤버가 동시에 참여를 눌러 정원을 넘기는 것을 막기 위한 낙관적 락.
 	 * 참여 기능이 붙을 때 실제로 쓰인다.
 	 */
@@ -232,9 +248,83 @@ public class Pot {
 	 *
 	 * <p>총대 권한·현재 상태 검증은 서비스가 한다 — 엔티티는 전이만 수행한다.
 	 * 검증을 여기 두면 마감 후 5시간 경과로 일괄 전이할 때(벌크 UPDATE) 규칙이 두 곳으로 갈라진다.
+	 * 벌크 UPDATE 쪽은 이 메서드를 타지 않으므로 {@code countsAsHostExperience} 계산 로직을
+	 * {@link PotRepository#completeAbandoned}의 {@code case when}에도 동일하게 맞춰뒀다.
 	 */
 	public void complete() {
+		this.countsAsHostExperience = currentMemberCount > 1 && !hasMemberLeft;
 		this.status = PotStatus.DONE;
+	}
+
+	/** 팟이 아직 살아 있을 때 누군가 나갔음을 기록한다. 완료 후 나가기는 경험치 판정과 무관해 무시한다. */
+	public void recordMemberLeft() {
+		if (isActive()) {
+			this.hasMemberLeft = true;
+		}
+	}
+
+	/**
+	 * 참여자가 아직 총대 혼자인지. 총대만 있을 때에 한해 팟 내용 수정이 열린다.
+	 *
+	 * <p>참여자가 한 명이라도 들어오면 막는 이유는, 이미 전달된 메뉴가 다른 가게 기준이 되고,
+	 * 송금할 계좌와 받으러 갈 장소가 참여자 모르게 바뀌기 때문이다. 잘못된 정보로 들어온 사람이
+	 * 있으면 총대가 채팅으로 정리하는 쪽이 낫다 — 값을 조용히 갈아치우는 것보다 낫다.
+	 */
+	public boolean hasOnlyHost() {
+		return currentMemberCount <= 1;
+	}
+
+	/**
+	 * 팟 내용 수정. 총대 혼자일 때만 호출된다는 전제로 필드를 통째로 갈아끼운다.
+	 *
+	 * <p>부분 수정(null이면 유지)을 지원하지 않는 이유는 화면이 생성 폼과 같은 전체 폼이어서
+	 * 항상 모든 값을 다시 보내오기 때문이다. 부분 수정을 섞으면 "지웠다"와 "안 보냈다"를
+	 * 구분할 수 없어진다.
+	 *
+	 * <p>{@code status}/{@code currentMemberCount}/{@code chatRoomId}는 여기서 건드리지 않는다.
+	 * 수정은 모집 조건을 다시 쓰는 것이지 진행 상태를 되돌리는 것이 아니다.
+	 * 권한·상태 검증은 서비스가 한다({@link #complete()}와 같은 결).
+	 */
+	public void update(String title, String description, String storeName, String storeUrl,
+		String meetingPlace, String meetingRoadAddress, String meetingJibunAddress,
+		BigDecimal latitude, BigDecimal longitude,
+		int capacity, int minOrderAmount, OffsetDateTime deadline,
+		String bankName, String accountNumber, String accountHolder) {
+		this.title = title;
+		this.description = description;
+		this.storeName = storeName;
+		this.storeUrl = storeUrl;
+		this.meetingPlace = meetingPlace;
+		this.meetingRoadAddress = meetingRoadAddress;
+		this.meetingJibunAddress = meetingJibunAddress;
+		this.latitude = latitude;
+		this.longitude = longitude;
+		this.capacity = capacity;
+		this.minOrderAmount = minOrderAmount;
+		this.deadline = deadline;
+		this.bankName = bankName;
+		this.accountNumber = accountNumber;
+		this.accountHolder = accountHolder;
+	}
+
+	/**
+	 * 모집 조건 확장. 정원과 마감시간을 늘리는 것만 허용한다.
+	 *
+	 * <p>참여자가 이미 있어도 열려 있는 유일한 변경 경로다. 늘리는 방향만 여는 이유는 이 방향이
+	 * 참여자에게 손해가 없어서다 — 자리가 더 생기고 시간이 더 생긴다. 반대로 정원을 줄이면 이미
+	 * 들어온 사람이 정원 밖으로 밀리고, 마감을 당기면 참여자가 기대한 시간표가 짧아진다.
+	 *
+	 * <p>같은 값으로 다시 호출해도 문제없다(멱등). 화면이 두 값을 함께 보내오므로 한쪽만 바꾸는
+	 * 경우 다른 쪽은 현재 값 그대로 들어온다. 검증·거부는 서비스가 한다.
+	 */
+	public void expandRecruitment(int capacity, OffsetDateTime deadline) {
+		this.capacity = capacity;
+		this.deadline = deadline;
+	}
+
+	/** 확장 방향인지. 정원·마감 둘 다 현재 값 이상이어야 한다. */
+	public boolean isExpansionOf(int newCapacity, OffsetDateTime newDeadline) {
+		return newCapacity >= this.capacity && !newDeadline.isBefore(this.deadline);
 	}
 
 	/**
@@ -249,7 +339,7 @@ public class Pot {
 		this.currentMemberCount++;
 	}
 
-	/** 참여자 1명 감소. 총대는 나갈 수 없으므로 0으로 떨어지지 않는다. */
+	/** 참여자 1명 감소. 총대는 완료 전엔 나갈 수 없어 그 전까지는 0으로 떨어지지 않는다. */
 	public void decreaseMemberCount() {
 		this.currentMemberCount--;
 	}

@@ -123,6 +123,29 @@ class ChatServiceTest {
 	}
 
 	@Test
+	@DisplayName("방을 나간 사람도 과거에 메시지를 보낸 적 있으면 닉네임 목록에 남는다 — memberCount에는 안 잡힌다")
+	void getRoom_includesNicknameOfMemberWhoLeft() {
+		ChatRoom room = ChatRoom.create("방", "동진시장 사거리 편의점 앞", OffsetDateTime.now(CLOCK));
+		setId(room, 10L);
+		ChatRoomMember membership = ChatRoomMember.join(room, 1L, OffsetDateTime.now(CLOCK));
+		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 1L)).willReturn(Optional.of(membership));
+		// 2L은 이미 나가서 활성 멤버십이 없다 — findByChatRoomId 결과에 1L만 남는다.
+		given(chatRoomMemberRepository.findByChatRoomId(10L)).willReturn(List.of(membership));
+		given(chatMessageRepository.findDistinctSenderIds(10L)).willReturn(List.of(1L, 2L));
+
+		Member member1 = Member.register("01011111111", "hash", "닉네임1", "주소");
+		setId(member1, 1L);
+		Member member2 = Member.register("01022222222", "hash", "나간사람", "주소");
+		setId(member2, 2L);
+		given(memberRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(member1, member2));
+
+		ChatRoomDetailResponse response = chatService.getRoom(1L, 10L);
+
+		assertThat(response.memberCount()).isEqualTo(1);
+		assertThat(response.members()).extracting("nickname").containsExactlyInAnyOrder("닉네임1", "나간사람");
+	}
+
+	@Test
 	@DisplayName("참여자가 아닌 memberId는 방 상세 조회가 거부된다")
 	void getRoom_accessDenied() {
 		given(chatRoomMemberRepository.findByChatRoomIdAndMemberId(10L, 1L)).willReturn(Optional.empty());
@@ -313,7 +336,7 @@ class ChatServiceTest {
 		given(chatRoomRepository.findById(10L)).willReturn(Optional.of(room));
 		given(chatMessageRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 
-		var response = chatService.postSystemJoinMessage(10L, "동교동자취러님이 들어왔어요");
+		var response = chatService.postSystemNoticeMessage(10L, "동교동자취러님이 들어왔어요");
 
 		assertThat(response.type()).isEqualTo(ChatMessage.MessageType.SYSTEM_JOIN);
 		assertThat(response.senderId()).isNull();
@@ -327,7 +350,7 @@ class ChatServiceTest {
 	void postSystemJoinMessage_roomNotFound() {
 		given(chatRoomRepository.findById(999L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> chatService.postSystemJoinMessage(999L, "content"))
+		assertThatThrownBy(() -> chatService.postSystemNoticeMessage(999L, "content"))
 			.isInstanceOf(BusinessException.class)
 			.extracting(e -> ((BusinessException) e).getErrorCode())
 			.isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);

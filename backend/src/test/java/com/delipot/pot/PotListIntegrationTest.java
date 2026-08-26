@@ -409,19 +409,27 @@ class PotListIntegrationTest {
 
 	// ---------- 상세 ----------
 
+	/**
+	 * "총대 N회" 배지는 참여자가 있었고 완료 전 이탈 없이 완료된 팟만 센다. 그래서 참여자로
+	 * {@code meId}를 하나씩 넣고 총대가 완료 처리까지 해야 배지에 잡힌다.
+	 */
 	@Test
 	@DisplayName("상세는 총대 닉네임과 '총대 N회' 배지 값을 준다")
 	void detailCarriesHostBadge() {
-		savePot(strangerId, "첫팟", latitudeOffsetBy(50), CURRENT.plusHours(1));
-		savePot(strangerId, "둘째팟", latitudeOffsetBy(50), CURRENT.plusHours(2));
+		Pot first = savePot(strangerId, "첫팟", latitudeOffsetBy(50), CURRENT.plusHours(1));
+		Pot second = savePot(strangerId, "둘째팟", latitudeOffsetBy(50), CURRENT.plusHours(2));
 		Pot third = savePot(strangerId, "셋째팟", latitudeOffsetBy(50), CURRENT.plusHours(3));
+		for (Pot pot : java.util.List.of(first, second, third)) {
+			potService.join(meId, pot.getId(), menuRequest());
+			potService.complete(strangerId, pot.getId());
+		}
 
 		var detail = potService.findDetail(meId, third.getId());
 
 		assertThat(detail.hostNickname()).isEqualTo("남");
 		assertThat(detail.hostPotCount()).isEqualTo(3);
 		assertThat(detail.isHost()).isFalse();
-		assertThat(detail.isJoined()).isFalse();
+		assertThat(detail.isJoined()).isTrue();
 	}
 
 	/** 상세 화면은 참여 전에도 열려 있다. 계좌를 항상 실으면 참여도 안 한 사람에게 계좌번호가 나간다. */

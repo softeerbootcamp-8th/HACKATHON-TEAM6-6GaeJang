@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { UsersRound } from 'lucide-react'
 
 import type { PotSummaryResponse } from '@/api/generated/model'
@@ -45,14 +46,17 @@ export function PotCard({ pot, onOpen, onComplete, isCompleting }: PotCardProps)
 
       {pot.isHost && (
         <div className="mt-5 grid grid-cols-2 gap-2 border-t pt-4">
-          <button
-            type="button"
-            disabled
-            title="내용 수정 API가 준비되면 사용할 수 있어요"
-            className="text-muted-fg h-10 rounded-lg border text-sm disabled:opacity-70"
+          {/*
+            참여자 유무와 무관하게 열어 둔다. 수정 화면이 알아서 갈린다 — 총대 혼자면 전체 폼,
+            참여자가 있으면 배달팟 인원·마감 시간만 손댈 수 있는 잠금 화면이다.
+          */}
+          <Link
+            to="/pots/$potId/edit"
+            params={{ potId: String(pot.potId) }}
+            className="text-fg flex h-10 items-center justify-center rounded-lg border text-sm font-medium"
           >
             내용 수정
-          </button>
+          </Link>
           <button
             type="button"
             disabled={isCompleting || !pot.potId}

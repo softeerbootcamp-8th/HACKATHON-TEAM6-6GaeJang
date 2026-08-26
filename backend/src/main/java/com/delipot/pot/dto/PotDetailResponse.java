@@ -1,5 +1,6 @@
 package com.delipot.pot.dto;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -41,6 +42,17 @@ public record PotDetailResponse(
 
 	@Schema(description = "만날 장소 지번 주소. 이 필드가 붙기 전 팟은 null", example = "서울 강남구 논현동 58-3")
 	String meetingJibunAddress,
+
+	/*
+	 * 좌표를 함께 내리는 이유는 총대의 수정 화면이 만날 장소를 다시 찍지 않고도 그대로 유지할 수
+	 * 있어야 해서다(PUT은 전체 값을 다시 보낸다). 주소 문자열이 이미 내려가고 있으므로
+	 * 위치 노출 수준은 달라지지 않는다.
+	 */
+	@Schema(description = "만날 장소 위도", example = "37.5006")
+	BigDecimal latitude,
+
+	@Schema(description = "만날 장소 경도", example = "127.0366")
+	BigDecimal longitude,
 
 	@Schema(description = "모집 마감시간")
 	OffsetDateTime deadline,
@@ -102,6 +114,7 @@ public record PotDetailResponse(
 		return new PotDetailResponse(
 			pot.getId(), pot.getTitle(), pot.getStoreName(), pot.getStoreUrl(), pot.getDescription(),
 			pot.getMeetingPlace(), pot.getMeetingRoadAddress(), pot.getMeetingJibunAddress(),
+			pot.getLatitude(), pot.getLongitude(),
 			pot.getDeadline(), pot.getMinOrderAmount(),
 			pot.getCurrentMemberCount(), pot.getCapacity(), pot.getStatus(), pot.getChatRoomId(),
 			hostNickname, hostPotCount, isHost, isJoined, isDeadlinePassed, members, account

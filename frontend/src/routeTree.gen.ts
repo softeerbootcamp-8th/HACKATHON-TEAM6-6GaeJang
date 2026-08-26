@@ -18,6 +18,7 @@ import { Route as ChatRoomIdIndexRouteImport } from './routes/chat/$roomId/index
 import { Route as MyEditIndexRouteImport } from './routes/my/edit/index'
 import { Route as PotsPotIdIndexRouteImport } from './routes/pots/$potId/index'
 import { Route as PotsNewIndexRouteImport } from './routes/pots/new/index'
+import { Route as PotsPotIdEditIndexRouteImport } from './routes/pots/$potId/edit/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -64,6 +65,11 @@ const PotsNewIndexRoute = PotsNewIndexRouteImport.update({
   path: '/pots/new/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PotsPotIdEditIndexRoute = PotsPotIdEditIndexRouteImport.update({
+  id: '/pots/$potId/edit/',
+  path: '/pots/$potId/edit/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/my/edit/': typeof MyEditIndexRoute
   '/pots/$potId/': typeof PotsPotIdIndexRoute
   '/pots/new/': typeof PotsNewIndexRoute
+  '/pots/$potId/edit/': typeof PotsPotIdEditIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByTo {
   '/my/edit': typeof MyEditIndexRoute
   '/pots/$potId': typeof PotsPotIdIndexRoute
   '/pots/new': typeof PotsNewIndexRoute
+  '/pots/$potId/edit': typeof PotsPotIdEditIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +106,7 @@ export interface FileRoutesById {
   '/my/edit/': typeof MyEditIndexRoute
   '/pots/$potId/': typeof PotsPotIdIndexRoute
   '/pots/new/': typeof PotsNewIndexRoute
+  '/pots/$potId/edit/': typeof PotsPotIdEditIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +120,7 @@ export interface FileRouteTypes {
     | '/my/edit/'
     | '/pots/$potId/'
     | '/pots/new/'
+    | '/pots/$potId/edit/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/my/edit'
     | '/pots/$potId'
     | '/pots/new'
+    | '/pots/$potId/edit'
   id:
     | '__root__'
     | '/'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '/my/edit/'
     | '/pots/$potId/'
     | '/pots/new/'
+    | '/pots/$potId/edit/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,6 +157,7 @@ export interface RootRouteChildren {
   MyEditIndexRoute: typeof MyEditIndexRoute
   PotsPotIdIndexRoute: typeof PotsPotIdIndexRoute
   PotsNewIndexRoute: typeof PotsNewIndexRoute
+  PotsPotIdEditIndexRoute: typeof PotsPotIdEditIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -212,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PotsNewIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pots/$potId/edit/': {
+      id: '/pots/$potId/edit/'
+      path: '/pots/$potId/edit'
+      fullPath: '/pots/$potId/edit/'
+      preLoaderRoute: typeof PotsPotIdEditIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -225,6 +245,7 @@ const rootRouteChildren: RootRouteChildren = {
   MyEditIndexRoute: MyEditIndexRoute,
   PotsPotIdIndexRoute: PotsPotIdIndexRoute,
   PotsNewIndexRoute: PotsNewIndexRoute,
+  PotsPotIdEditIndexRoute: PotsPotIdEditIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

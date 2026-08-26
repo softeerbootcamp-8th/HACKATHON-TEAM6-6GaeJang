@@ -38,4 +38,15 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 		ORDER BY m.id DESC
 		""")
 	List<ChatMessage> findPage(@Param("roomId") Long roomId, @Param("before") Long before, Pageable pageable);
+
+	/**
+	 * 이 방에 메시지를 보낸 적 있는 senderId 전부(현재 나간 사람 포함). SYSTEM_JOIN은 senderId가
+	 * 없어 자동으로 빠진다. 나간 멤버의 과거 메시지에도 닉네임·아바타를 계속 보여주기 위해
+	 * {@link ChatService#getRoom}이 현재 멤버 목록과 이 결과를 합쳐 닉네임을 조회한다.
+	 */
+	@Query("""
+		SELECT DISTINCT m.senderId FROM ChatMessage m
+		WHERE m.chatRoom.id = :roomId AND m.senderId IS NOT NULL
+		""")
+	List<Long> findDistinctSenderIds(@Param("roomId") Long roomId);
 }

@@ -33,7 +33,11 @@ public interface PotRepository extends JpaRepository<Pot, Long> {
 	@Modifying(clearAutomatically = true, flushAutomatically = true)
 	@Query("""
 		update Pot p
-		   set p.status = com.delipot.pot.PotStatus.DONE
+		   set p.status = com.delipot.pot.PotStatus.DONE,
+		       p.countsAsHostExperience = case
+		           when p.currentMemberCount > 1 and p.hasMemberLeft = false then true
+		           else false
+		       end
 		 where p.status = com.delipot.pot.PotStatus.ACTIVE
 		   and p.deadline <= :threshold
 		""")
@@ -98,8 +102,11 @@ public interface PotRepository extends JpaRepository<Pot, Long> {
 	 * <p>마감시간을 보지 않는 이유: 참여자에게는 마감 후가 오히려 중요한 구간이다(주문·입금·수령).
 	 * 이 섹션에서 사라지는 유일한 조건은 나눔 완료({@code DONE})다.
 	 */
-	/** 상세 화면의 "총대 N회" 배지. 그 사람이 지금까지 연 팟 수(완료된 것 포함). */
-	long countByHostId(Long hostId);
+	/**
+	 * "총대 N회" 배지. 완료된 팟 중에서도 "총대 외 참여자가 있었고 완료 전 이탈이 없었던" 팟만
+	 * 센다({@link Pot#countsAsHostExperience}, {@link Pot#complete()} 참고).
+	 */
+	long countByHostIdAndCountsAsHostExperienceTrue(Long hostId);
 
 	/** 회원 탈퇴 검증용 — 총대로 있는 살아있는(ACTIVE) 팟이 있는지. */
 	boolean existsByHostIdAndStatus(Long hostId, PotStatus status);
