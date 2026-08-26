@@ -58,4 +58,20 @@ class MemberRepositoryIntegrationTest {
 
 		assertThat(memberRepository.findByPhoneNumberAndWithdrawnAtIsNull("01044444444")).isPresent();
 	}
+
+	@Test
+	@DisplayName("탈퇴 후 익명화: 같은 phoneNumber/nickname으로 재가입해도 unique 제약에 걸리지 않는다")
+	void withdrawnMemberFreesUpPhoneNumberAndNickname() {
+		Member withdrawn = save("01055555555", "탈퇴예정");
+		withdrawn.withdraw();
+		memberRepository.saveAndFlush(withdrawn);
+
+		Member rejoined = save("01055555555", "탈퇴예정");
+
+		assertThat(memberRepository.existsByPhoneNumber("01055555555")).isTrue();
+		assertThat(rejoined.getPhoneNumber()).isEqualTo("01055555555");
+		assertThat(rejoined.getNickname()).isEqualTo("탈퇴예정");
+		assertThat(memberRepository.findById(withdrawn.getId()).orElseThrow().getPhoneNumber())
+			.isEqualTo("DEL" + withdrawn.getId());
+	}
 }

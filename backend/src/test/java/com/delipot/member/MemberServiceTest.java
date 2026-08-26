@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.delipot.global.error.BusinessException;
 import com.delipot.global.error.ErrorCode;
@@ -91,14 +92,17 @@ class MemberServiceTest {
 	}
 
 	@Test
-	@DisplayName("회원 탈퇴: withdraw()를 호출하면 탈퇴 시각이 세팅된다")
+	@DisplayName("회원 탈퇴: withdraw()를 호출하면 탈퇴 시각이 세팅되고 phoneNumber/nickname이 익명화된다")
 	void withdrawSetsWithdrawnAt() {
 		Member member = member("치킨조아");
+		ReflectionTestUtils.setField(member, "id", MEMBER_ID);
 		given(memberRepository.findById(MEMBER_ID)).willReturn(java.util.Optional.of(member));
 
 		memberService.withdraw(MEMBER_ID);
 
 		assertThat(member.getWithdrawnAt()).isNotNull();
+		assertThat(member.getPhoneNumber()).isEqualTo("DEL" + MEMBER_ID);
+		assertThat(member.getNickname()).isEqualTo("탈퇴" + MEMBER_ID);
 	}
 
 	@Test
