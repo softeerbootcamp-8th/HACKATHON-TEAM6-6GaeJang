@@ -35,7 +35,7 @@ public interface PotRepository extends JpaRepository<Pot, Long> {
 		update Pot p
 		   set p.status = com.delipot.pot.PotStatus.DONE,
 		       p.countsAsHostExperience = case
-		           when p.currentMemberCount > 1 and p.hasMemberLeft = false then true
+		           when p.currentMemberCount > 1 or p.hasMemberLeft = true then true
 		           else false
 		       end
 		 where p.status = com.delipot.pot.PotStatus.ACTIVE
@@ -103,7 +103,7 @@ public interface PotRepository extends JpaRepository<Pot, Long> {
 	 * 이 섹션에서 사라지는 유일한 조건은 나눔 완료({@code DONE})다.
 	 */
 	/**
-	 * "총대 N회" 배지. 완료된 팟 중에서도 "총대 외 참여자가 있었고 완료 전 이탈이 없었던" 팟만
+	 * "총대 N회" 배지. 완료된 팟 중에서도 총대 외 참여자가 한 번이라도 있었던 팟만
 	 * 센다({@link Pot#countsAsHostExperience}, {@link Pot#complete()} 참고).
 	 */
 	long countByHostIdAndCountsAsHostExperienceTrue(Long hostId);

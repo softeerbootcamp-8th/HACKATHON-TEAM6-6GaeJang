@@ -5,7 +5,12 @@ import { ChevronDown, Plus, Search, X } from 'lucide-react'
 
 import type { PotSummaryResponse } from '@/api/generated/model'
 import { getMeQueryKey, useMe, useUpdateProfile } from '@/api/generated/auth/auth'
-import { getGetPotsQueryKey, useCompletePot, useGetPots } from '@/api/generated/pot/pot'
+import {
+  getGetPotQueryKey,
+  getGetPotsQueryKey,
+  useCompletePot,
+  useGetPots,
+} from '@/api/generated/pot/pot'
 import { formatLocalAddress } from '@/lib/addressFormatter'
 import { requireAuth } from '@/lib/authGuard'
 
@@ -98,7 +103,26 @@ function HomePage() {
   )
   const complete = useCompletePot({
     mutation: {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetPotsQueryKey() }),
+      onSuccess: async (_, { potId }) => {
+        await Promise.all([
+          // 완료 팟 제거와 서버가 확정한 총대 횟수를 같은 성공 흐름에서 다시 받는다.
+          queryClient.invalidateQueries({ queryKey: getGetPotsQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getMeQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getGetPotQueryKey(potId) }),
+          // 채팅방 역조회·메시지는 roomId를 여기서 모르므로 관련 경로를 모두 stale 처리한다.
+          // 현재 화면에 있으면 즉시 refetch되고, 캐시에만 있으면 다음 진입 때 새로 조회된다.
+          queryClient.invalidateQueries({
+            predicate: ({ queryKey }) => {
+              const path = queryKey[0]
+              return (
+                typeof path === 'string' &&
+                (path.startsWith('/api/pots/by-chat-room/') ||
+                  path.startsWith('/api/chat/rooms'))
+              )
+            },
+          }),
+        ])
+      },
       onError: (error) => setActionError(error.message),
     },
   })
