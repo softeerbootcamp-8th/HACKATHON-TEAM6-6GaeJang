@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, Loader2 } from 'lucide-react'
@@ -28,6 +28,25 @@ function ProfileEditPage() {
   const [loadedNickname, setLoadedNickname] = useState<string | null>(null)
   const [showAddressPicker, setShowAddressPicker] = useState(false)
 
+  // 주소 선택 화면은 URL이 안 바뀌어 브라우저 히스토리에 항목이 안 쌓인다. 그대로 두면
+  // 뒤로가기를 눌렀을 때 이 화면이 아니라 /my/edit 이전 페이지로 튕긴다. pushState로
+  // 항목을 하나 쌓고 popstate에서 다시 닫아 맞춘다.
+  const openAddressPicker = () => {
+    window.history.pushState({ showAddressPicker: true }, '')
+    setShowAddressPicker(true)
+  }
+
+  useEffect(() => {
+    // AddressSetupStep이 지도 화면용으로 항목을 하나 더 쌓을 수 있으니, 무조건 닫지 않고
+    // popstate가 남긴 state를 보고 판단한다 — 지도→검색처럼 이 단계 안쪽으로 돌아온 경우까지
+    // 프로필 수정 화면으로 튕겨버리면 안 된다.
+    const handlePopState = (event: PopStateEvent) => {
+      setShowAddressPicker(event.state?.showAddressPicker === true)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
   if (member && (member.nickname ?? '') !== loadedNickname) {
     setLoadedNickname(member.nickname ?? '')
     setNickname(member.nickname ?? '')
@@ -55,7 +74,10 @@ function ProfileEditPage() {
     mutation: {
       onSuccess: async () => {
         await invalidateMe()
-        setShowAddressPicker(false)
+        // onComplete(handleAddressComplete)는 항상 AddressSetupStep의 지도 화면에서만 불린다 —
+        // 그 화면에 오려면 주소 선택 단계(1) + 지도 화면(1), 총 두 단계를 눌러 왔으므로
+        // 두 칸을 한 번에 되돌린다.
+        window.history.go(-2)
       },
     },
   })
@@ -75,7 +97,7 @@ function ProfileEditPage() {
 
     return (
       <AddressSetupStep
-        onBack={() => setShowAddressPicker(false)}
+        onBack={() => window.history.back()}
         onComplete={handleAddressComplete}
         isSubmitting={saveAddress.isPending}
         confirmLabel="완료"
@@ -146,7 +168,7 @@ function ProfileEditPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setShowAddressPicker(true)}
+                onClick={openAddressPicker}
                 className="bg-muted h-8 shrink-0 rounded-lg border-transparent px-3 text-xs font-semibold"
               >
                 변경

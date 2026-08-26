@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, MapPin, Minus, Plus, X } from 'lucide-react'
@@ -59,6 +59,25 @@ function NewPotPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
+  // 주소 선택 화면은 URL이 안 바뀌어 브라우저 히스토리에 항목이 안 쌓인다. 그대로 두면
+  // 뒤로가기를 눌렀을 때 이 화면이 아니라 /pots/new 이전 페이지로 튕긴다. pushState로
+  // 항목을 하나 쌓고 popstate에서 다시 닫아 맞춘다.
+  const openLocationPicker = () => {
+    window.history.pushState({ locationPickerOpen: true }, '')
+    setLocationPickerOpen(true)
+  }
+
+  useEffect(() => {
+    // AddressSetupStep이 지도 화면용으로 항목을 하나 더 쌓을 수 있으니, 무조건 닫지 않고
+    // popstate가 남긴 state를 보고 판단한다 — 지도→검색처럼 이 단계 안쪽으로 돌아온 경우까지
+    // 폼으로 튕겨버리면 안 된다.
+    const handlePopState = (event: PopStateEvent) => {
+      setLocationPickerOpen(event.state?.locationPickerOpen === true)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
   const createPot = useCreatePot({
     mutation: {
       onSuccess: (response) => {
@@ -115,10 +134,12 @@ function NewPotPage() {
   if (locationPickerOpen) {
     return (
       <AddressSetupStep
-        onBack={() => setLocationPickerOpen(false)}
+        onBack={() => window.history.back()}
         onComplete={(location) => {
           setMeetingLocation(location)
-          setLocationPickerOpen(false)
+          // onComplete는 항상 AddressSetupStep의 지도 화면에서만 불린다 — 그 화면에 오려면
+          // 이 주소 선택 단계(1) + 지도 화면(1), 총 두 단계를 눌러 왔으므로 두 칸을 한 번에 되돌린다.
+          window.history.go(-2)
         }}
         confirmLabel="이 위치로 설정"
       />
@@ -198,7 +219,7 @@ function NewPotPage() {
           <FormField label="만날 장소" hint="지도에서 배달을 받아 나눌 지점을 찍어주세요">
             <button
               type="button"
-              onClick={() => setLocationPickerOpen(true)}
+              onClick={openLocationPicker}
               className={`form-control flex items-center gap-2 text-left ${meetingLocation ? 'text-fg' : 'text-muted-fg'}`}
             >
               <MapPin className="text-primary size-5 shrink-0" />
