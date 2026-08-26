@@ -100,8 +100,10 @@ function MyPage() {
                 </div>
               </div>
 
-              <nav aria-label="마이페이지 메뉴" className="mt-6">
-                <ul className="divide-border divide-y border-t border-b">
+              <div className="bg-surface -mx-5 mt-6 h-2" />
+
+              <nav aria-label="마이페이지 메뉴">
+                <ul className="divide-border divide-y">
                   <li>
                     <Link
                       to="/my/edit"
@@ -129,7 +131,12 @@ function MyPage() {
                       <ChevronRight className="text-muted-fg/50 size-4" />
                     </span>
                   </li>
-                  <li className="border-t">
+                </ul>
+
+                <div className="bg-surface -mx-5 h-2" />
+
+                <ul className="divide-border divide-y">
+                  <li>
                     <button
                       type="button"
                       onClick={() => setShowLogoutConfirm(true)}
@@ -152,7 +159,9 @@ function MyPage() {
                 </ul>
               </nav>
 
-              <div className="mt-6 flex items-center justify-between text-sm">
+              <div className="bg-surface -mx-5 mb-6 h-2" />
+
+              <div className="flex items-center justify-between text-sm">
                 <span>앱 버전정보</span>
                 <span className="text-muted-fg">{APP_VERSION}</span>
               </div>
