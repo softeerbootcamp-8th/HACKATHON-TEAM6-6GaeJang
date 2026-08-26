@@ -65,7 +65,7 @@ function MyPage() {
           className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32"
         >
           <header>
-            <AppLogoHeader />
+            <AppLogoHeader compact />
             <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
             <div className="flex h-14 items-center">
               <h1 className="text-xl font-bold">마이페이지</h1>
