@@ -31,7 +31,7 @@ export function MessageComposer({ disabled, onSend, onSendImage }: MessageCompos
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-bg flex shrink-0 items-center gap-3 border-t px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]"
+      className="bg-bg flex shrink-0 items-center gap-3 border-t px-4 pt-2 pb-4"
     >
       <input
         ref={fileInputRef}
