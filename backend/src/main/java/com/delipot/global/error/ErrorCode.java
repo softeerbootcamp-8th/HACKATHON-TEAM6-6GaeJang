@@ -38,7 +38,7 @@ public enum ErrorCode {
 	// 모집 조건은 늘리는 방향만 열려 있다. 줄이면 이미 들어온 참여자의 자리·시간표가 깎인다.
 	POT_RECRUITMENT_CANNOT_SHRINK(HttpStatus.CONFLICT, "배달팟 인원과 마감 시간은 줄일 수 없습니다."),
 	// 회원 — 총대인 진행 중인 팟이 있으면 탈퇴를 막는다. 참여자로만 속한 팟은 자동으로 나가기 처리된다.
-	MEMBER_HAS_ACTIVE_POT(HttpStatus.CONFLICT, "진행 중인 배달팟이 있어 탈퇴할 수 없어요."),
+	MEMBER_HAS_ACTIVE_POT(HttpStatus.CONFLICT, "총대는 나눔 완료 후 탈퇴가 가능합니다."),
 
 	// 500대 — 서버 문제
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");

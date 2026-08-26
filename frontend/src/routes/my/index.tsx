@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
@@ -37,6 +37,13 @@ function MyPage() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false)
   const [withdrawError, setWithdrawError] = useState('')
+
+  useEffect(() => {
+    if (!withdrawError) return
+
+    const timer = window.setTimeout(() => setWithdrawError(''), 2350)
+    return () => window.clearTimeout(timer)
+  }, [withdrawError])
 
   const goToLogin = async () => {
     await clearSessionQueries(queryClient)
@@ -166,14 +173,19 @@ function MyPage() {
                 <span className="text-muted-fg">{APP_VERSION}</span>
               </div>
 
-              {withdrawError && (
-                <p role="alert" className="text-down mt-6 text-sm">
-                  {withdrawError}
-                </p>
-              )}
             </>
           )}
         </div>
+
+        {withdrawError && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="withdraw-toast bg-fg text-bg absolute inset-x-5 bottom-[96px] z-40 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-lg"
+          >
+            {withdrawError}
+          </div>
+        )}
 
         <MobileBottomNav active="my" />
       </div>
