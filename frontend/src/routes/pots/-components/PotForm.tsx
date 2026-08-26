@@ -191,7 +191,7 @@ export function PotForm({
         </FormField>
         <FormField
           label="가게 링크"
-          hint="배달앱 공유 버튼으로 복사한 문구를 그대로 붙여넣어도 링크만 들어가요"
+          hint="배달앱 가게 페이지에서 공유 링크를 복사해서 붙여넣어 주세요"
         >
           <input
             required
@@ -201,7 +201,7 @@ export function PotForm({
             onChange={(e) => setField('storeUrl', e.target.value)}
             onPaste={storeName.handlePaste}
             onBlur={(e) => storeName.handleBlur(e.target.value)}
-            placeholder="배달 앱의 가게 링크를 복사해서 붙여넣어 주세요"
+            placeholder="주문할 가게의 링크를 입력해주세요"
             className="form-control"
           />
         </FormField>
@@ -222,7 +222,7 @@ export function PotForm({
             {storeName.hint}
           </span>
         </FormField>
-        <FormField label="만날 장소" hint="지도에서 배달을 받아 나눌 지점을 찍어주세요">
+        <FormField label="만날 장소" hint="정확한 위치는 멤버들과 채팅방에서 논의할 수 있어요">
           <button
             type="button"
             onClick={() => setLocationPickerOpen(true)}
