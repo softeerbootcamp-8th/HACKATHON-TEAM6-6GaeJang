@@ -11,6 +11,7 @@ import {
 } from '@/api/generated/pot/pot'
 import type { PotDetailResponse } from '@/api/generated/model'
 import { formatLocalAddress } from '@/lib/addressFormatter'
+import { formatPrice, unformatPrice } from '@/lib/priceFormatter'
 
 import { formatDeadline } from '../pots/-utils/formatDeadline'
 
@@ -271,7 +272,10 @@ function MenuEntry({ detail, onClose }: { detail: PotDetailResponse; onClose: ()
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!detail.potId) return
-    join.mutate({ potId: detail.potId, data: { menuContent, menuPrice: Number(menuPrice) } })
+    join.mutate({
+      potId: detail.potId,
+      data: { menuContent, menuPrice: Number(unformatPrice(menuPrice)) },
+    })
   }
 
   return (
@@ -323,11 +327,10 @@ function MenuEntry({ detail, onClose }: { detail: PotDetailResponse; onClose: ()
           <span className="relative block">
             <input
               required
-              min={0}
-              type="number"
               inputMode="numeric"
               value={menuPrice}
-              onChange={(e) => setMenuPrice(e.target.value)}
+              onChange={(e) => setMenuPrice(formatPrice(e.target.value))}
+              placeholder="0"
               className="form-control pr-10 font-bold"
             />
             <span className="text-muted-fg absolute top-1/2 right-4 -translate-y-1/2 text-sm">
