@@ -69,6 +69,10 @@ class PotServiceTest {
 
 	/** 팟 하나를 총대 {@code HOST_ID}, 인원 {@code memberCount}/4, 상태 {@code status}로 만든다. */
 	private Pot pot(PotStatus status, int memberCount) {
+		return pot(status, memberCount, 4);
+	}
+
+	private Pot pot(PotStatus status, int memberCount, int capacity) {
 		Pot pot = Pot.builder()
 			.hostId(HOST_ID)
 			.title("역삼역 호백반점 같이 시켜요")
@@ -77,7 +81,7 @@ class PotServiceTest {
 			.meetingPlace("역삼 스타빌 1층 로비")
 			.latitude(new BigDecimal("37.5006000"))
 			.longitude(new BigDecimal("127.0366000"))
-			.capacity(4)
+			.capacity(capacity)
 			.minOrderAmount(20000)
 			.deadline(CURRENT.plusHours(1))
 			.bankName("카카오뱅크")
@@ -88,7 +92,7 @@ class PotServiceTest {
 		pot.linkChatRoom(CHAT_ROOM_ID);
 
 		for (int i = 1; i < memberCount; i++) {
-			pot.increaseMemberCount();
+			pot.join();
 		}
 		if (status == PotStatus.DONE) {
 			pot.complete();
@@ -727,8 +731,7 @@ class PotServiceTest {
 	@Test
 	@DisplayName("값이 바뀌면 채팅방에 변경 공지가 남는다")
 	void expandPostsChatNotice() {
-		Pot pot = pot(PotStatus.ACTIVE, 3);
-		pot.expandRecruitment(2, pot.getDeadline());
+		Pot pot = pot(PotStatus.ACTIVE, 2, 2);
 		givenPotExists(pot);
 
 		potService().expandRecruitment(HOST_ID, POT_ID, expand(4, CURRENT.plusHours(4)));

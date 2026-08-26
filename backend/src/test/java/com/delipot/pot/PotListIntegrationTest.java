@@ -168,9 +168,9 @@ class PotListIntegrationTest {
 	@DisplayName("정원이 찬 팟은 전체 목록에서 빠진다 — 참여할 수 없는 카드다")
 	void excludesFullPots() {
 		Pot full = savePot(strangerId, "정원찬집", latitudeOffsetBy(50), CURRENT.plusHours(1));
-		full.increaseMemberCount();
-		full.increaseMemberCount();
-		full.increaseMemberCount();
+		full.join();
+		full.join();
+		full.join();
 		potRepository.saveAndFlush(full);
 
 		savePot(strangerId, "여유있는집", latitudeOffsetBy(50), CURRENT.plusHours(2));
@@ -205,7 +205,7 @@ class PotListIntegrationTest {
 
 		Pot joinedPot = savePot(strangerId, "참여한집", latitudeOffsetBy(50), CURRENT.plusHours(2));
 		potMemberRepository.save(PotMember.join(joinedPot.getId(), meId, "허니콤보", 12000, CURRENT));
-		joinedPot.increaseMemberCount();
+		joinedPot.join();
 		potRepository.saveAndFlush(joinedPot);
 
 		savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(3));

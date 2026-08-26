@@ -257,13 +257,6 @@ public class Pot {
 		this.status = PotStatus.DONE;
 	}
 
-	/** 팟이 아직 살아 있을 때 누군가 나갔음을 기록한다. 완료 후 나가기는 경험치 판정과 무관해 무시한다. */
-	public void recordMemberLeft() {
-		if (isActive()) {
-			this.hasMemberLeft = true;
-		}
-	}
-
 	/**
 	 * 참여자가 아직 총대 혼자인지. 총대만 있을 때에 한해 팟 내용 수정이 열린다.
 	 *
@@ -319,6 +312,11 @@ public class Pot {
 	 * 경우 다른 쪽은 현재 값 그대로 들어온다. 검증·거부는 서비스가 한다.
 	 */
 	public void expandRecruitment(int capacity, OffsetDateTime deadline) {
+		if (!isExpansionOf(capacity, deadline)) {
+			throw new IllegalStateException(
+				"모집 조건은 축소할 수 없다: capacity %d -> %d, deadline %s -> %s"
+					.formatted(this.capacity, capacity, this.deadline, deadline));
+		}
 		this.capacity = capacity;
 		this.deadline = deadline;
 	}
@@ -335,13 +333,33 @@ public class Pot {
 	 * 목록 카드가 "2/4"를 그리는데, 팟마다 count 쿼리를 날리면 N+1이 되기 때문이다.
 	 * 대신 이 컬럼과 실제 행 수가 어긋나지 않게 참여/나가기를 한 트랜잭션에서 같이 움직인다.
 	 * 동시 참여로 정원을 넘기는 것은 {@link #version} 낙관적 락이 막는다.
+	 *
+	 * <p>정원 검사는 마지막 방어선이다 — 사용자에게 보여줄 {@code POT_FULL} 판정은 서비스가 하고,
+	 * 여기 걸리는 것은 그 검사를 빠뜨린 버그다. 그래서 {@code BusinessException}이 아니라
+	 * {@code IllegalStateException}을 던진다(400이 아니라 500으로 드러나야 한다).
 	 */
-	public void increaseMemberCount() {
+	public void join() {
+		if (isFull()) {
+			throw new IllegalStateException(
+				"정원을 넘겨 참여시킬 수 없다: potId=%d, %d/%d".formatted(id, currentMemberCount, capacity));
+		}
 		this.currentMemberCount++;
 	}
 
-	/** 참여자 1명 감소. 총대는 완료 전엔 나갈 수 없어 그 전까지는 0으로 떨어지지 않는다. */
-	public void decreaseMemberCount() {
+	/**
+	 * 참여자 1명 감소. 팟이 살아 있는 동안의 이탈이면 경험치 판정용 이력({@code hasMemberLeft})도 함께 남긴다.
+	 *
+	 * <p>두 변경을 한 메서드로 묶은 이유는 항상 같이 일어나야 하는 일이어서다. 나뉘어 있으면 호출부가
+	 * 순서와 짝을 기억해야 하고, 이력 기록을 빠뜨렸을 때 총대 경험치 판정이 조용히 틀어진다.
+	 * 완료 후 나가기는 경험치 판정과 무관해 이력을 남기지 않는다.
+	 */
+	public void leave() {
+		if (currentMemberCount <= 0) {
+			throw new IllegalStateException("참여자가 없는 팟에서 나갈 수 없다: potId=%d".formatted(id));
+		}
+		if (isActive()) {
+			this.hasMemberLeft = true;
+		}
 		this.currentMemberCount--;
 	}
 }
