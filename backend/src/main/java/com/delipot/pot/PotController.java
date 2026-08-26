@@ -124,8 +124,9 @@ public class PotController {
 
 	@Operation(
 		summary = "팟 나가기",
-		description = "채팅방의 '팟 나가기' 버튼. 참여 기록을 지우고 인원을 1 줄인다. "
-			+ "총대는 나갈 수 없다(POT_HOST_CANNOT_LEAVE) — 나눔 완료를 쓴다."
+		description = "채팅방의 '팟 나가기' 버튼. 참여 기록을 지우고 인원을 1 줄이며, 채팅방에 "
+			+ "'~님이 채팅방을 나갔어요' 안내를 남긴다. "
+			+ "총대는 나눔 완료 전엔 나갈 수 없다(POT_HOST_CANNOT_LEAVE) — 완료 후에는 참여자와 동일하게 나갈 수 있다."
 	)
 	@RequireAuthenticate
 	@DeleteMapping("/{potId}/members/me")

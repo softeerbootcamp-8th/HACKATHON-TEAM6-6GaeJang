@@ -148,6 +148,22 @@ public class Pot {
 	private PotStatus status;
 
 	/**
+	 * 팟이 {@code ACTIVE}인 동안 누군가 나간 적이 있는지. 총대는 완료 전엔 나갈 수 없으므로(
+	 * {@link PotService#leave}) 이 시점의 "누군가"는 항상 참여자다.
+	 * "총대 경험" 조건 — 완료 전 이탈이 있었으면 그 팟은 경험치로 치지 않는다 — 판정에만 쓴다.
+	 */
+	@Column(nullable = false)
+	private boolean hasMemberLeft;
+
+	/**
+	 * "총대 N회" 배지에 이 팟을 셀지 여부. {@link #complete()}(수동/자동 모두) 시점에 딱 한 번
+	 * 계산해서 고정한다 — 완료 후 참여자·총대가 나가서 {@code currentMemberCount}가 줄어도
+	 * 이미 확정된 경험치가 흔들리면 안 되기 때문이다.
+	 */
+	@Column(nullable = false)
+	private boolean countsAsHostExperience;
+
+	/**
 	 * 여러 멤버가 동시에 참여를 눌러 정원을 넘기는 것을 막기 위한 낙관적 락.
 	 * 참여 기능이 붙을 때 실제로 쓰인다.
 	 */
@@ -232,9 +248,19 @@ public class Pot {
 	 *
 	 * <p>총대 권한·현재 상태 검증은 서비스가 한다 — 엔티티는 전이만 수행한다.
 	 * 검증을 여기 두면 마감 후 5시간 경과로 일괄 전이할 때(벌크 UPDATE) 규칙이 두 곳으로 갈라진다.
+	 * 벌크 UPDATE 쪽은 이 메서드를 타지 않으므로 {@code countsAsHostExperience} 계산 로직을
+	 * {@link PotRepository#completeAbandoned}의 {@code case when}에도 동일하게 맞춰뒀다.
 	 */
 	public void complete() {
+		this.countsAsHostExperience = currentMemberCount > 1 && !hasMemberLeft;
 		this.status = PotStatus.DONE;
+	}
+
+	/** 팟이 아직 살아 있을 때 누군가 나갔음을 기록한다. 완료 후 나가기는 경험치 판정과 무관해 무시한다. */
+	public void recordMemberLeft() {
+		if (isActive()) {
+			this.hasMemberLeft = true;
+		}
 	}
 
 	/**
@@ -249,7 +275,7 @@ public class Pot {
 		this.currentMemberCount++;
 	}
 
-	/** 참여자 1명 감소. 총대는 나갈 수 없으므로 0으로 떨어지지 않는다. */
+	/** 참여자 1명 감소. 총대는 완료 전엔 나갈 수 없어 그 전까지는 0으로 떨어지지 않는다. */
 	public void decreaseMemberCount() {
 		this.currentMemberCount--;
 	}

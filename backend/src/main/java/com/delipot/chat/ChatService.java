@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -60,7 +61,13 @@ public class ChatService {
 		return new ChatRoomResponse(room.getId(), room.getName(), room.getLocation(), room.getCreatedAt());
 	}
 
-	/** 채팅방 헤더용 상세 — 이름/장소/인원수/참여자 닉네임. 방 멤버가 아니면 거부. */
+	/**
+	 * 채팅방 헤더용 상세 — 이름/장소/인원수/참여자 닉네임. 방 멤버가 아니면 거부.
+	 *
+	 * <p>{@code memberCount}는 지금 방에 남아 있는 멤버 수다. {@code members}(닉네임 조회용)는
+	 * 그보다 넓게, 이 방에 메시지를 보낸 적 있는 사람까지 합친다 — 나간 멤버가 남긴 과거 메시지도
+	 * 닉네임·아바타를 계속 보여줘야 해서다({@link ChatMessageRepository#findDistinctSenderIds}).
+	 */
 	@Transactional(readOnly = true)
 	public ChatRoomDetailResponse getRoom(Long memberId, Long roomId) {
 		ChatRoomMember membership = chatRoomMemberRepository.findByChatRoomIdAndMemberId(roomId, memberId)
@@ -68,16 +75,21 @@ public class ChatService {
 		ChatRoom room = membership.getChatRoom();
 
 		List<ChatRoomMember> memberships = chatRoomMemberRepository.findByChatRoomId(roomId);
-		List<Long> memberIds = memberships.stream().map(ChatRoomMember::getMemberId).toList();
-		Map<Long, String> nicknameById = memberRepository.findAllById(memberIds).stream()
+		List<Long> activeMemberIds = memberships.stream().map(ChatRoomMember::getMemberId).toList();
+
+		List<Long> nicknameTargetIds = Stream.concat(
+			activeMemberIds.stream(), chatMessageRepository.findDistinctSenderIds(roomId).stream()
+		).distinct().toList();
+
+		Map<Long, String> nicknameById = memberRepository.findAllById(nicknameTargetIds).stream()
 			.collect(Collectors.toMap(Member::getId, Member::getNickname));
 
-		List<ChatRoomMemberSummary> members = memberIds.stream()
+		List<ChatRoomMemberSummary> members = nicknameTargetIds.stream()
 			.map(id -> new ChatRoomMemberSummary(id, nicknameById.get(id)))
 			.toList();
 
 		return new ChatRoomDetailResponse(
-			room.getId(), room.getName(), room.getLocation(), members.size(), members, room.getCreatedAt()
+			room.getId(), room.getName(), room.getLocation(), activeMemberIds.size(), members, room.getCreatedAt()
 		);
 	}
 
@@ -163,12 +175,12 @@ public class ChatService {
 	}
 
 	/**
-	 * 배달팟 멤버 가입/나눔 완료 등 배달팟 쪽에서 직접 호출하는 내부 API
+	 * 배달팟 멤버 가입/나가기/나눔 완료 등 배달팟 쪽에서 직접 호출하는 내부 API
 	 * (단일 모놀리식이라 HTTP 없이 서비스 메서드로 노출). 닉네임 등 회원 정보는 채팅이
 	 * 몰라도 되게, 이미 완성된 문구를 호출자가 만들어 넘긴다.
 	 */
 	@Transactional
-	public ChatMessageResponse postSystemJoinMessage(Long roomId, String content) {
+	public ChatMessageResponse postSystemNoticeMessage(Long roomId, String content) {
 		ChatRoom room = chatRoomRepository.findById(roomId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 		ChatMessage message = chatMessageRepository.save(

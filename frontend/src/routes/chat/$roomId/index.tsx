@@ -5,6 +5,7 @@ import { LogOut } from 'lucide-react'
 
 import { useMe } from '@/api/generated/auth/auth'
 import { getGetMyRoomsQueryKey, useGetMessages, useGetRoom, useMarkRead } from '@/api/generated/chat/chat'
+import { PotDetailResponseStatus } from '@/api/generated/model'
 import type { ChatMessageResponse } from '@/api/generated/model'
 import { useGetPotByChatRoom, useLeavePot } from '@/api/generated/pot/pot'
 import { requireAuth } from '@/lib/authGuard'
@@ -62,6 +63,7 @@ function ChatRoomPage() {
   const nicknameById = new Map(
     (room.data?.data?.members ?? []).map((m) => [m.memberId, m.nickname]),
   )
+  const myNickname = member ? nicknameById.get(member.id) : undefined
 
   const markRead = useMarkRead({
     mutation: {
@@ -137,7 +139,7 @@ function ChatRoomPage() {
             {subtitle && <p className="text-muted-fg truncate text-xs">{subtitle}</p>}
           </div>
         </div>
-        {potData && !potData.isHost && (
+        {potData && (!potData.isHost || potData.status === PotDetailResponseStatus.DONE) && (
           <button
             type="button"
             onClick={handleLeave}
@@ -176,6 +178,7 @@ function ChatRoomPage() {
                   message={message}
                   isMine={message.senderId === member.id}
                   nickname={message.senderId != null ? nicknameById.get(message.senderId) : undefined}
+                  myNickname={myNickname}
                 />
               </Fragment>
             )
