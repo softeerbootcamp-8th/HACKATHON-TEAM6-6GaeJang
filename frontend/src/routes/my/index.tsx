@@ -191,7 +191,7 @@ function MyPage() {
       <ConfirmDialog
         open={showWithdrawConfirm}
         title="탈퇴할까요?"
-        description="참여 중인 팟은 자동으로 나가기 처리돼요."
+        description="계정 정보가 삭제되며 다시 복구할 수 없어요."
         cancelLabel="아니요"
         confirmLabel="탈퇴"
         onCancel={() => setShowWithdrawConfirm(false)}
