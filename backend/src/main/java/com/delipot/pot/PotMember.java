@@ -15,11 +15,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 팟 참여 기록. 총대도 여기에 한 행으로 들어간다.
- *
- * <p>총대를 예외로 두지 않는 이유는 홈 목록이 "내가 연 팟"과 "참여중인 팟"을 같은 방식으로
- * 찾아야 해서다. 총대만 {@code Pot.hostId}로, 나머지만 이 테이블로 찾게 하면 조회가 두 갈래가 된다.
- * 총대 여부는 {@link Pot#isHost(Long)}로 구분하고, 이 테이블은 "이 팟에 속한 사람 전부"를 뜻한다.
+ * 팟 참여 기록. 총대도 여기에 한 행으로 들어간다 — 이 테이블은 "이 팟에 속한 사람 전부"를 뜻하고,
+ * 총대 여부는 {@link Pot#isHost(Long)}로 구분한다. 총대만 따로 찾게 하면 홈 목록 조회가 두 갈래가 된다.
  *
  * <p>{@code unique(pot_id, member_id)}는 중복 참여의 최종 방어선이다. 서비스가 먼저 확인하지만
  * 같은 사람이 참여 버튼을 두 번 빠르게 눌렀을 때는 DB 제약만 막을 수 있다.
@@ -36,10 +33,8 @@ import lombok.NoArgsConstructor;
 public class PotMember {
 
 	/**
-	 * 중복 참여를 막는 unique 제약 이름.
-	 *
-	 * <p>상수로 뽑아 {@code @UniqueConstraint}와 {@link PotService}의 예외 번역이 같은 값을 쓰게 한다.
-	 * 문자열을 양쪽에 따로 적으면 이름을 바꿨을 때 번역이 조용히 안 걸려 중복 참여가 500으로 나간다.
+	 * 중복 참여를 막는 unique 제약 이름. {@code @UniqueConstraint}와 {@link PotService}의 예외 번역이
+	 * 같은 값을 쓰게 상수로 뽑았다 — 따로 적으면 이름을 바꿨을 때 번역이 조용히 안 걸린다.
 	 */
 	static final String UK_POT_MEMBER = "uk_pot_members_pot_member";
 
@@ -54,16 +49,13 @@ public class PotMember {
 	private Long memberId;
 
 	/**
-	 * 참여할 때 입력한 메뉴·옵션 자유 텍스트. 총대가 배달앱에 그대로 옮겨 적는 값이다.
-	 *
-	 * <p>가게마다 옵션 구조가 달라 서버가 구조화할 수 없다. 총대가 읽고 주문할 수 있으면 충분하다.
-	 *
-	 * <p>총대 자신의 참여 기록에는 없다(null) — 총대는 팟을 만들 때 메뉴를 입력하지 않는다.
+	 * 참여할 때 입력한 메뉴·옵션 자유 텍스트. 총대가 배달앱에 그대로 옮겨 적는 값이라 구조화하지 않는다.
+	 * 총대 자신의 행에는 없다(null) — 팟을 만들 때는 메뉴를 입력하지 않는다.
 	 */
 	@Column(length = 500)
 	private String menuContent;
 
-	/** 참여자가 낼 금액(원). 총대의 최소주문금액 충족 판단에 쓰인다. 총대 본인은 null. */
+	/** 참여자가 낼 금액(원). 최소주문금액 충족 판단에 쓰인다. 총대 본인은 null. */
 	@Column
 	private Integer menuPrice;
 

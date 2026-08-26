@@ -23,10 +23,7 @@ public interface PotMemberRepository extends JpaRepository<PotMember, Long> {
 		""")
 	List<Long> findActivePotIdsByMemberId(@Param("memberId") Long memberId);
 
-	/**
-	 * 카드 우측 아바타용. 팟마다 따로 조회하면 목록 크기만큼 쿼리가 늘어나(N+1)
-	 * 한 번에 긁어 서비스에서 potId로 묶는다.
-	 */
+	/** 카드 우측 아바타용. 팟마다 따로 조회하면 목록 크기만큼 쿼리가 늘어나(N+1) 한 번에 긁는다. */
 	List<PotMember> findByPotIdIn(Collection<Long> potIds);
 
 	boolean existsByPotIdAndMemberId(Long potId, Long memberId);

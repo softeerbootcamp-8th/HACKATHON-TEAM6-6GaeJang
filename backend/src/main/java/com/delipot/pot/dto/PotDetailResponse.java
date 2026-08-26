@@ -12,9 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 /**
  * 팟 상세. 참여 전 첫 진입 화면과 채팅방 상단 헤더가 같이 쓴다.
  *
- * <p>정산 계좌는 참여자에게만 채워 보낸다. 상세 화면은 아직 참여하지 않은 사람에게도 열려 있어서
- * 계좌를 항상 실으면 참여도 안 한 사람에게 계좌번호가 노출된다. 화면상으로도 계좌 배너는
- * 채팅방(=참여 후)에만 있다.
+ * <p>정산 계좌는 참여자에게만 채워 보낸다 — 이 화면은 참여하지 않은 사람에게도 열려 있다.
  */
 @Schema(description = "팟 상세")
 public record PotDetailResponse(
@@ -43,11 +41,7 @@ public record PotDetailResponse(
 	@Schema(description = "만날 장소 지번 주소. 이 필드가 붙기 전 팟은 null", example = "서울 강남구 논현동 58-3")
 	String meetingJibunAddress,
 
-	/*
-	 * 좌표를 함께 내리는 이유는 총대의 수정 화면이 만날 장소를 다시 찍지 않고도 그대로 유지할 수
-	 * 있어야 해서다(PUT은 전체 값을 다시 보낸다). 주소 문자열이 이미 내려가고 있으므로
-	 * 위치 노출 수준은 달라지지 않는다.
-	 */
+	// 좌표를 함께 내리는 이유: 총대의 수정 화면이 만날 장소를 다시 찍지 않고 유지해야 한다(PUT은 전체 값).
 	@Schema(description = "만날 장소 위도", example = "37.5006")
 	BigDecimal latitude,
 
