@@ -33,6 +33,8 @@ public enum ErrorCode {
 	POT_ALREADY_JOINED(HttpStatus.CONFLICT, "이미 참여한 팟입니다."),
 	POT_NOT_JOINED(HttpStatus.CONFLICT, "참여하지 않은 팟입니다."),
 	POT_HOST_CANNOT_LEAVE(HttpStatus.BAD_REQUEST, "총대는 나눔 완료 전에는 팟을 나갈 수 없습니다."),
+	// 참여자가 한 명이라도 들어오면 내용을 못 바꾼다 — 이미 전달된 메뉴·계좌·장소가 통째로 무의미해지기 때문이다.
+	POT_NOT_EDITABLE(HttpStatus.CONFLICT, "이미 참여자가 있어 수정할 수 없습니다."),
 	// 회원 — 총대인 진행 중인 팟이 있으면 탈퇴를 막는다. 참여자로만 속한 팟은 자동으로 나가기 처리된다.
 	MEMBER_HAS_ACTIVE_POT(HttpStatus.CONFLICT, "진행 중인 배달팟이 있어 탈퇴할 수 없어요."),
 

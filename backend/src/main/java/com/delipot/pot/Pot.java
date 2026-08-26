@@ -264,6 +264,50 @@ public class Pot {
 	}
 
 	/**
+	 * 참여자가 아직 총대 혼자인지. 총대만 있을 때에 한해 팟 내용 수정이 열린다.
+	 *
+	 * <p>참여자가 한 명이라도 들어오면 막는 이유는, 이미 전달된 메뉴가 다른 가게 기준이 되고,
+	 * 송금할 계좌와 받으러 갈 장소가 참여자 모르게 바뀌기 때문이다. 잘못된 정보로 들어온 사람이
+	 * 있으면 총대가 채팅으로 정리하는 쪽이 낫다 — 값을 조용히 갈아치우는 것보다 낫다.
+	 */
+	public boolean hasOnlyHost() {
+		return currentMemberCount <= 1;
+	}
+
+	/**
+	 * 팟 내용 수정. 총대 혼자일 때만 호출된다는 전제로 필드를 통째로 갈아끼운다.
+	 *
+	 * <p>부분 수정(null이면 유지)을 지원하지 않는 이유는 화면이 생성 폼과 같은 전체 폼이어서
+	 * 항상 모든 값을 다시 보내오기 때문이다. 부분 수정을 섞으면 "지웠다"와 "안 보냈다"를
+	 * 구분할 수 없어진다.
+	 *
+	 * <p>{@code status}/{@code currentMemberCount}/{@code chatRoomId}는 여기서 건드리지 않는다.
+	 * 수정은 모집 조건을 다시 쓰는 것이지 진행 상태를 되돌리는 것이 아니다.
+	 * 권한·상태 검증은 서비스가 한다({@link #complete()}와 같은 결).
+	 */
+	public void update(String title, String description, String storeName, String storeUrl,
+		String meetingPlace, String meetingRoadAddress, String meetingJibunAddress,
+		BigDecimal latitude, BigDecimal longitude,
+		int capacity, int minOrderAmount, OffsetDateTime deadline,
+		String bankName, String accountNumber, String accountHolder) {
+		this.title = title;
+		this.description = description;
+		this.storeName = storeName;
+		this.storeUrl = storeUrl;
+		this.meetingPlace = meetingPlace;
+		this.meetingRoadAddress = meetingRoadAddress;
+		this.meetingJibunAddress = meetingJibunAddress;
+		this.latitude = latitude;
+		this.longitude = longitude;
+		this.capacity = capacity;
+		this.minOrderAmount = minOrderAmount;
+		this.deadline = deadline;
+		this.bankName = bankName;
+		this.accountNumber = accountNumber;
+		this.accountHolder = accountHolder;
+	}
+
+	/**
 	 * 참여자 1명 증가.
 	 *
 	 * <p>{@code currentMemberCount}를 {@code PotMember} 행 수로 매번 세지 않고 컬럼으로 들고 있는 이유는

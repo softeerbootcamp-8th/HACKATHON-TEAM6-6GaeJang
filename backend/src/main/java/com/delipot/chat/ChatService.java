@@ -219,6 +219,19 @@ public class ChatService {
 	}
 
 	/**
+	 * 배달팟 내용 수정 시 배달팟 쪽에서 호출 — 방 이름(가게명)과 장소(만날 장소)를 맞춘다.
+	 *
+	 * <p>이걸 안 하면 팟은 바뀌었는데 채팅 목록에는 옛 가게명이, 헤더에는 옛 장소가 남는다.
+	 * 방이 없는(연동 전) 팟도 있으므로 호출 쪽에서 {@code chatRoomId} null 여부를 먼저 본다.
+	 */
+	@Transactional
+	public void updateRoomInfo(Long roomId, String name, String location) {
+		chatRoomRepository.findById(roomId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND))
+			.updateInfo(name, location);
+	}
+
+	/**
 	 * 배달팟 나가기 시 배달팟 쪽에서 호출 — 방 멤버십을 제거한다.
 	 * 이미 멤버가 아니면 조용히 무시한다(재시도 안전).
 	 */

@@ -31,6 +31,7 @@ import com.delipot.member.Member;
 import com.delipot.member.MemberService;
 import com.delipot.pot.dto.PotCreateRequest;
 import com.delipot.pot.dto.PotCreateResponse;
+import com.delipot.pot.dto.PotUpdateRequest;
 
 @ExtendWith(MockitoExtension.class)
 class PotServiceTest {
@@ -544,6 +545,161 @@ class PotServiceTest {
 		potService().leaveAllActivePots(OTHER_ID);
 
 		verify(potMemberRepository, never()).deleteByPotIdAndMemberId(any(), any());
+	}
+
+	// ---------- 수정 ----------
+
+	/** 수정 폼이 보내는 값. 기본값과 전부 다르게 잡아 갈아끼움이 실제로 일어났는지 볼 수 있게 한다. */
+	private PotUpdateRequest updateRequest() {
+		return new PotUpdateRequest(
+			"저녁에 치킨 같이 시키실 분 구해요",
+			"교촌치킨 연남점",
+			"https://baemin.app/store/gyochon-yeonnam",
+			"학동로 171",
+			"서울 강남구 학동로 171",
+			"서울 강남구 논현동 58-3",
+			new BigDecimal("37.5170000"),
+			new BigDecimal("127.0290000"),
+			3,
+			18000,
+			CURRENT.plusHours(3),
+			"교촌 허니콤보 세트 시킬 예정이에요",
+			"토스뱅크",
+			"1000-01-7654321",
+			"김육개"
+		);
+	}
+
+	@Test
+	@DisplayName("총대 혼자인 팟은 모든 필드가 통째로 갈아끼워진다")
+	void updateReplacesEveryField() {
+		Pot pot = pot(PotStatus.ACTIVE, 1);
+		givenPotExists(pot);
+
+		potService().update(HOST_ID, POT_ID, updateRequest());
+
+		assertThat(pot.getTitle()).isEqualTo("저녁에 치킨 같이 시키실 분 구해요");
+		assertThat(pot.getStoreName()).isEqualTo("교촌치킨 연남점");
+		assertThat(pot.getStoreUrl()).isEqualTo("https://baemin.app/store/gyochon-yeonnam");
+		assertThat(pot.getMeetingPlace()).isEqualTo("학동로 171");
+		assertThat(pot.getMeetingRoadAddress()).isEqualTo("서울 강남구 학동로 171");
+		assertThat(pot.getMeetingJibunAddress()).isEqualTo("서울 강남구 논현동 58-3");
+		assertThat(pot.getLatitude()).isEqualByComparingTo("37.5170000");
+		assertThat(pot.getLongitude()).isEqualByComparingTo("127.0290000");
+		assertThat(pot.getCapacity()).isEqualTo(3);
+		assertThat(pot.getMinOrderAmount()).isEqualTo(18000);
+		assertThat(pot.getDeadline()).isEqualTo(CURRENT.plusHours(3));
+		assertThat(pot.getDescription()).isEqualTo("교촌 허니콤보 세트 시킬 예정이에요");
+		assertThat(pot.getBankName()).isEqualTo("토스뱅크");
+		assertThat(pot.getAccountNumber()).isEqualTo("1000-01-7654321");
+		assertThat(pot.getAccountHolder()).isEqualTo("김육개");
+	}
+
+	/** 수정은 모집 조건을 다시 쓰는 것이지 진행 상태를 되돌리는 것이 아니다. */
+	@Test
+	@DisplayName("수정해도 상태·인원·채팅방 연결은 그대로다")
+	void updateKeepsProgressState() {
+		Pot pot = pot(PotStatus.ACTIVE, 1);
+		givenPotExists(pot);
+
+		potService().update(HOST_ID, POT_ID, updateRequest());
+
+		assertThat(pot.getStatus()).isEqualTo(PotStatus.ACTIVE);
+		assertThat(pot.getCurrentMemberCount()).isEqualTo(1);
+		assertThat(pot.getChatRoomId()).isEqualTo(CHAT_ROOM_ID);
+	}
+
+	/** 방 이름은 가게명, 방 장소는 만날 장소다. 여기서 밀어주지 않으면 채팅에 옛 값이 남는다. */
+	@Test
+	@DisplayName("가게명·만날 장소를 바꾸면 연결된 채팅방 정보도 함께 갱신된다")
+	void updateSyncsChatRoomInfo() {
+		givenPotExists(pot(PotStatus.ACTIVE, 1));
+
+		potService().update(HOST_ID, POT_ID, updateRequest());
+
+		verify(chatService).updateRoomInfo(CHAT_ROOM_ID, "교촌치킨 연남점", "학동로 171");
+	}
+
+	@Test
+	@DisplayName("참여자가 한 명이라도 있으면 POT_NOT_EDITABLE — 값이 하나도 바뀌지 않는다")
+	void updateRejectedWhenSomeoneJoined() {
+		Pot pot = pot(PotStatus.ACTIVE, 2);
+		givenPotExists(pot);
+
+		assertThatThrownBy(() -> potService().update(HOST_ID, POT_ID, updateRequest()))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_NOT_EDITABLE);
+
+		assertThat(pot.getStoreName()).isEqualTo("호백반점");
+		assertThat(pot.getAccountNumber()).isEqualTo("3333-01-1234567");
+		verify(chatService, never()).updateRoomInfo(any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("총대가 아니면 POT_ACCESS_DENIED")
+	void updateByNonHostIsRejected() {
+		Pot pot = pot(PotStatus.ACTIVE, 1);
+		givenPotExists(pot);
+
+		assertThatThrownBy(() -> potService().update(OTHER_ID, POT_ID, updateRequest()))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_ACCESS_DENIED);
+
+		assertThat(pot.getStoreName()).isEqualTo("호백반점");
+	}
+
+	@Test
+	@DisplayName("나눔 완료된 팟은 수정할 수 없다 — 총대 혼자 끝낸 팟이라도 되살리지 않는다")
+	void updateDonePotIsRejected() {
+		Pot pot = pot(PotStatus.DONE, 1);
+		givenPotExists(pot);
+
+		assertThatThrownBy(() -> potService().update(HOST_ID, POT_ID, updateRequest()))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_NOT_ACTIVE);
+	}
+
+	/** 생성과 같은 도메인 규칙("지금부터 30분")이 수정에도 걸려야 한다. 안 그러면 수정으로 우회된다. */
+	@Test
+	@DisplayName("마감시간을 30분 안쪽으로 당기는 수정은 거부한다")
+	void updateWithTooSoonDeadlineIsRejected() {
+		Pot pot = pot(PotStatus.ACTIVE, 1);
+		givenPotExists(pot);
+		PotUpdateRequest tooSoon = new PotUpdateRequest(
+			"저녁에 치킨 같이 시키실 분 구해요", "교촌치킨 연남점",
+			"https://baemin.app/store/gyochon-yeonnam", "학동로 171", null, null,
+			new BigDecimal("37.5170000"), new BigDecimal("127.0290000"),
+			3, 18000, CURRENT.plusMinutes(29), null,
+			"토스뱅크", "1000-01-7654321", "김육개");
+
+		assertThatThrownBy(() -> potService().update(HOST_ID, POT_ID, tooSoon))
+			.isInstanceOf(BusinessException.class);
+
+		assertThat(pot.getStoreName()).isEqualTo("호백반점");
+		verify(chatService, never()).updateRoomInfo(any(), any(), any());
+	}
+
+	/**
+	 * 마감이 지나도 총대 혼자면 수정이 열려 있어야 한다 — 아무도 안 들어온 팟의 마감시간을
+	 * 다시 늘려 살리는 것이 이 화면의 주 용도 중 하나다.
+	 */
+	@Test
+	@DisplayName("마감시간이 지난 팟도 총대 혼자면 마감을 다시 늘려 수정할 수 있다")
+	void updateRevivesExpiredPotWithHostOnly() {
+		Pot pot = pot(PotStatus.ACTIVE, 1);
+		givenPotExists(pot);
+		PotService afterDeadline = potService(Clock.fixed(NOW.plusSeconds(7200), SEOUL));
+
+		afterDeadline.update(HOST_ID, POT_ID, new PotUpdateRequest(
+			"저녁에 치킨 같이 시키실 분 구해요", "교촌치킨 연남점",
+			"https://baemin.app/store/gyochon-yeonnam", "학동로 171", null, null,
+			new BigDecimal("37.5170000"), new BigDecimal("127.0290000"),
+			3, 18000, CURRENT.plusHours(5), null,
+			"토스뱅크", "1000-01-7654321", "김육개"));
+
+		assertThat(pot.getDeadline()).isEqualTo(CURRENT.plusHours(5));
+		assertThat(pot.isDeadlinePassed(CURRENT.plusHours(2))).isFalse();
 	}
 
 	// ---------- 모집 마감 / 완료 ----------

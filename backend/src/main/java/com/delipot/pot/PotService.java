@@ -29,6 +29,7 @@ import com.delipot.pot.dto.PotListRequest;
 import com.delipot.pot.dto.PotListResponse;
 import com.delipot.pot.dto.PotMemberResponse;
 import com.delipot.pot.dto.PotSummaryResponse;
+import com.delipot.pot.dto.PotUpdateRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -114,6 +115,59 @@ public class PotService {
 		pot.linkChatRoom(room.id());
 
 		return PotCreateResponse.from(pot);
+	}
+
+	/**
+	 * 팟 내용 수정. 총대 본인이, 아직 참여자가 없고, 나눔이 끝나지 않은 팟만 고칠 수 있다.
+	 *
+	 * <p>참여자가 한 명이라도 들어오면 막는다({@link ErrorCode#POT_NOT_EDITABLE}). 이미 전달된
+	 * 메뉴는 그 가게 기준이고, 참여자는 그 계좌·그 장소를 보고 들어왔다. 값을 갈아치우면
+	 * 참여자에게는 아무 신호 없이 다른 팟이 되어 버린다. 대신 총대는 채팅으로 정리할 수 있다.
+	 *
+	 * <p>수정 폼을 열어 둔 사이 누군가 참여하는 경합은 {@code Pot.version} 낙관적 락이 막는다 —
+	 * 참여 트랜잭션이 먼저 커밋되면 이 저장이 실패하고 {@code CONFLICT}로 응답된다.
+	 * 여기 인원 검사만 두면 폼을 연 시점의 낡은 값으로 통과할 수 있다.
+	 *
+	 * <p>가게명·만날 장소가 바뀌면 연결된 채팅방의 이름·장소도 함께 맞춘다. 채팅방은 이 값들을
+	 * 자체 컬럼으로 들고 있어(팟을 모른다) 여기서 밀어주지 않으면 옛 값이 그대로 남는다.
+	 *
+	 * <p>수정 결과를 돌려주지 않는 이유는, 상세를 만들려면 총대 닉네임·총대 횟수·참여자 목록까지
+	 * 다시 긁어야 하는데 프론트는 저장 직후 목록/상세를 어차피 새로 조회하기 때문이다.
+	 */
+	@Transactional
+	public void update(Long memberId, Long potId, PotUpdateRequest request) {
+		Pot pot = findPot(potId);
+		requireHost(pot, memberId);
+
+		if (!pot.isActive()) {
+			throw new BusinessException(ErrorCode.POT_NOT_ACTIVE, "이미 나눔이 완료된 팟입니다.");
+		}
+		if (!pot.hasOnlyHost()) {
+			throw new BusinessException(ErrorCode.POT_NOT_EDITABLE);
+		}
+		validateDeadline(request.deadline());
+
+		pot.update(
+			request.title(),
+			request.description(),
+			request.storeName(),
+			request.storeUrl(),
+			request.meetingPlace(),
+			request.meetingRoadAddress(),
+			request.meetingJibunAddress(),
+			request.latitude(),
+			request.longitude(),
+			request.capacity(),
+			request.minOrderAmount(),
+			request.deadline(),
+			request.bankName(),
+			request.accountNumber(),
+			request.accountHolder()
+		);
+
+		if (pot.getChatRoomId() != null) {
+			chatService.updateRoomInfo(pot.getChatRoomId(), pot.getStoreName(), pot.getMeetingPlace());
+		}
 	}
 
 	/**

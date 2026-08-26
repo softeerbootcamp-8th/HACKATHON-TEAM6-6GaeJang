@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -22,6 +23,7 @@ import com.delipot.pot.dto.PotJoinRequest;
 import com.delipot.pot.dto.PotJoinResponse;
 import com.delipot.pot.dto.PotListRequest;
 import com.delipot.pot.dto.PotListResponse;
+import com.delipot.pot.dto.PotUpdateRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -51,6 +53,28 @@ public class PotController {
 		@Valid @RequestBody PotCreateRequest request
 	) {
 		return ApiResponse.ok(potService.create(hostId, request));
+	}
+
+	@Operation(
+		summary = "팟 수정",
+		description = "총대가 '내용 수정'으로 들어와 생성 폼과 같은 전체 값을 다시 보낸다. "
+			+ "아직 참여자가 없는(총대 혼자인) ACTIVE 팟만 수정할 수 있다 — "
+			+ "참여자가 한 명이라도 있으면 POT_NOT_EDITABLE. 이미 전달된 메뉴가 다른 가게 기준이 되고 "
+			+ "참여자가 보고 들어온 계좌·장소가 조용히 바뀌기 때문이다. "
+			+ "총대가 아니면 POT_ACCESS_DENIED, 나눔이 끝난 팟이면 POT_NOT_ACTIVE. "
+			+ "수정 폼을 열어 둔 사이 누가 참여하면 낙관적 락에 걸려 CONFLICT로 실패한다. "
+			+ "가게명·만날 장소가 바뀌면 연결된 채팅방의 이름·장소도 함께 갱신된다. "
+			+ "본문 없이 성공만 응답한다 — 프론트는 저장 후 목록·상세를 새로 조회한다."
+	)
+	@RequireAuthenticate
+	@PutMapping("/{potId}")
+	public ApiResponse<Void> updatePot(
+		@LoginMember Long memberId,
+		@PathVariable Long potId,
+		@Valid @RequestBody PotUpdateRequest request
+	) {
+		potService.update(memberId, potId, request);
+		return ApiResponse.ok();
 	}
 
 	@Operation(
