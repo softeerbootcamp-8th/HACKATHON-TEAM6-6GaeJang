@@ -22,7 +22,7 @@ function NewPotPage() {
       onSuccess: (response) => {
         void queryClient.invalidateQueries({ queryKey: getGetPotsQueryKey() })
         const potId = response.data?.potId
-        navigate({ to: '/', search: potId ? { openPotId: potId } : {} })
+        navigate({ to: '/', search: potId ? { revealPotId: potId } : {} })
       },
       onError: (error) => setErrorMessage(error.message),
     },

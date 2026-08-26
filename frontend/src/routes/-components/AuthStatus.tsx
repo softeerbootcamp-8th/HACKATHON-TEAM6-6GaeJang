@@ -1,9 +1,10 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 
-import { getMeQueryKey, useLogout, useMe } from '@/api/generated/auth/auth'
+import { useLogout, useMe } from '@/api/generated/auth/auth'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { clearSessionQueries } from '@/lib/sessionCache'
 
 /** 홈 상단 로그인 상태. 미인증(401)은 정상 상태라 재시도하지 않는다. */
 export function AuthStatus() {
@@ -14,8 +15,8 @@ export function AuthStatus() {
   const logout = useLogout({
     mutation: {
       onSuccess: async () => {
-        await queryClient.invalidateQueries({ queryKey: getMeQueryKey() })
-        navigate({ to: '/login' })
+        await clearSessionQueries(queryClient)
+        await navigate({ to: '/login' })
       },
     },
   })

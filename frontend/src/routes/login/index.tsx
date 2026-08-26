@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useCapsLockWarning } from '@/hooks/useCapsLockWarning'
 import { redirectIfAuthenticated } from '@/lib/authGuard'
 import { formatPhoneNumber, unformatPhoneNumber } from '@/lib/phoneFormatter'
+import { clearSessionQueries } from '@/lib/sessionCache'
 
 export const Route = createFileRoute('/login/')({
   beforeLoad: ({ context }) => redirectIfAuthenticated(context.queryClient),
@@ -29,9 +30,10 @@ function LoginPage() {
     mutation: {
       // 로그아웃 이후 재로그인 시 me 쿼리가 캐시에 status:'error'로 남아있어,
       // 캐시를 갱신하지 않고 navigate만 하면 '/'의 requireAuth 가드가 미인증으로 오판해 도로 튕겨낸다.
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
+        await clearSessionQueries(queryClient)
         queryClient.setQueryData(getMeQueryKey(), data)
-        void navigate({ to: '/' })
+        await navigate({ to: '/' })
       },
     },
   })

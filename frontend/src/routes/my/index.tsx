@@ -3,8 +3,9 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
 
-import { getMeQueryKey, useLogout, useMe, useWithdraw } from '@/api/generated/auth/auth'
+import { useLogout, useMe, useWithdraw } from '@/api/generated/auth/auth'
 import { requireAuth } from '@/lib/authGuard'
+import { clearSessionQueries } from '@/lib/sessionCache'
 
 import { MobileBottomNav } from '../-components/MobileBottomNav'
 import { ConfirmDialog } from './-components/ConfirmDialog'
@@ -27,8 +28,8 @@ function MyPage() {
   const [withdrawError, setWithdrawError] = useState('')
 
   const goToLogin = async () => {
-    await queryClient.invalidateQueries({ queryKey: getMeQueryKey() })
-    navigate({ to: '/login' })
+    await clearSessionQueries(queryClient)
+    await navigate({ to: '/login' })
   }
 
   const logout = useLogout({
