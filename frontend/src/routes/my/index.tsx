@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
@@ -9,6 +9,7 @@ import { clearSessionQueries } from '@/lib/sessionCache'
 
 import { AppLogoHeader } from '../-components/AppLogoHeader'
 import { MobileBottomNav } from '../-components/MobileBottomNav'
+import { PullToRefreshIndicator, usePullToRefresh } from '../-components/PullToRefresh'
 import { ConfirmDialog } from './-components/ConfirmDialog'
 
 export const Route = createFileRoute('/my/')({
@@ -21,6 +22,15 @@ const APP_VERSION = 'v1.0.0'
 function MyPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const refreshPage = useCallback(
+    () => queryClient.refetchQueries({ type: 'active' }),
+    [queryClient],
+  )
+  const {
+    scrollRef: pullToRefreshRef,
+    pullDistance,
+    isRefreshing,
+  } = usePullToRefresh({ onRefresh: refreshPage })
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
 
@@ -50,9 +60,13 @@ function MyPage() {
   return (
     <main aria-label="마이페이지" className="app-shell">
       <div className="relative h-full">
-        <div className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32">
+        <div
+          ref={pullToRefreshRef}
+          className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32"
+        >
           <header>
             <AppLogoHeader />
+            <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
             <div className="flex h-14 items-center">
               <h1 className="text-xl font-bold">마이페이지</h1>
             </div>

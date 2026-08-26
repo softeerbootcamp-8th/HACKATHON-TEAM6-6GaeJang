@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useCallback, type ReactNode } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 
@@ -10,6 +10,7 @@ import { requireAuth } from '@/lib/authGuard'
 
 import { AppLogoHeader } from '../-components/AppLogoHeader'
 import { MobileBottomNav } from '../-components/MobileBottomNav'
+import { PullToRefreshIndicator, usePullToRefresh } from '../-components/PullToRefresh'
 import { ChatRoomListItem } from './-components/ChatRoomListItem'
 import { useChatRoomsSocket } from './-hooks/useChatRoomsSocket'
 
@@ -24,6 +25,15 @@ function ChatRoomListPage() {
   const member = me.isError ? undefined : me.data?.data
 
   const queryClient = useQueryClient()
+  const refreshPage = useCallback(
+    () => queryClient.refetchQueries({ type: 'active' }),
+    [queryClient],
+  )
+  const {
+    scrollRef: pullToRefreshRef,
+    pullDistance,
+    isRefreshing,
+  } = usePullToRefresh({ onRefresh: refreshPage })
   const rooms = useGetMyRooms({ query: { enabled: !!member } })
   const roomIds = rooms.data?.data?.map((room) => room.roomId).filter((id): id is number => id != null) ?? []
 
@@ -47,9 +57,13 @@ function ChatRoomListPage() {
   return (
     <main aria-label="채팅방 목록" className="app-shell">
       <div className="relative h-full">
-        <div className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32">
+        <div
+          ref={pullToRefreshRef}
+          className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32"
+        >
           <header className="bg-bg sticky top-0 z-20 -mx-5 px-5 pb-2">
             <AppLogoHeader />
+            <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
             <div className="flex h-14 items-center">
               <h1 className="text-lg font-bold">채팅</h1>
             </div>
