@@ -46,4 +46,15 @@ public class ChatRoom {
 	public static ChatRoom create(String name, String location, OffsetDateTime createdAt) {
 		return new ChatRoom(name, location, createdAt);
 	}
+
+	/**
+	 * 방 이름·장소 갱신. 배달팟 내용이 수정될 때 팟 쪽에서 호출한다.
+	 *
+	 * <p>방 이름은 가게명, 장소는 만날 장소라 팟에서 바뀌면 여기도 같이 바뀌어야 한다.
+	 * 이 값들이 갱신되지 않으면 채팅 목록에는 옛 가게명이, 헤더에는 옛 장소가 남는다.
+	 */
+	public void updateInfo(String name, String location) {
+		this.name = name;
+		this.location = location;
+	}
 }

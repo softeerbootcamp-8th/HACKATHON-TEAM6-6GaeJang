@@ -16,8 +16,15 @@ import jakarta.validation.constraints.Size;
 
 import com.delipot.global.validation.NonWhitespaceSize;
 
-@Schema(description = "팟 생성 요청")
-public record PotCreateRequest(
+/**
+ * 팟 내용 수정 요청.
+ *
+ * <p>{@link PotCreateRequest}와 필드가 같다. 하나로 합치지 않는 이유는 두 계약이 앞으로
+ * 갈라질 자리가 있어서다 — 수정은 참여자가 없을 때만 열리므로 나중에 "참여자가 있어도
+ * 제목만 고치기"가 생기면 이쪽만 필드가 줄어든다. 지금은 전체 폼을 그대로 다시 보낸다.
+ */
+@Schema(description = "팟 수정 요청. 생성 폼과 같은 전체 값을 다시 보낸다")
+public record PotUpdateRequest(
 
 	@Schema(description = "글 제목. 공백 제외 최대 30자", example = "역삼역 호백반점 같이 시켜요", maxLength = 30)
 	@NotBlank(message = "제목은 필수입니다.")

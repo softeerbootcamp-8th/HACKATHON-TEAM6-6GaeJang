@@ -2,6 +2,8 @@ package com.delipot.pot;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -28,7 +30,9 @@ import com.delipot.pot.dto.PotJoinResponse;
 import com.delipot.pot.dto.PotListRequest;
 import com.delipot.pot.dto.PotListResponse;
 import com.delipot.pot.dto.PotMemberResponse;
+import com.delipot.pot.dto.PotRecruitmentUpdateRequest;
 import com.delipot.pot.dto.PotSummaryResponse;
+import com.delipot.pot.dto.PotUpdateRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +42,10 @@ public class PotService {
 
 	/** 마감시간이 너무 촉박하면 아무도 참여하지 못한다. 최소 여유를 도메인 규칙으로 둔다. */
 	private static final int MIN_DEADLINE_MINUTES = 30;
+
+	/** 채팅 공지에 찍는 마감시간의 기준 시간대. 참여자는 전부 같은 동네에 있다. */
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+	private static final DateTimeFormatter DEADLINE_NOTICE_FORMAT = DateTimeFormatter.ofPattern("M월 d일 HH:mm");
 
 	/** 홈 목록 조회 반경. 걸어가서 받아올 수 있는 거리로 기획에서 정한 값이다. */
 	private static final int SEARCH_RADIUS_METERS = 300;
@@ -114,6 +122,111 @@ public class PotService {
 		pot.linkChatRoom(room.id());
 
 		return PotCreateResponse.from(pot);
+	}
+
+	/**
+	 * 팟 내용 수정. 총대 본인이, 아직 참여자가 없고, 나눔이 끝나지 않은 팟만 고칠 수 있다.
+	 *
+	 * <p>참여자가 한 명이라도 들어오면 막는다({@link ErrorCode#POT_NOT_EDITABLE}). 이미 전달된
+	 * 메뉴는 그 가게 기준이고, 참여자는 그 계좌·그 장소를 보고 들어왔다. 값을 갈아치우면
+	 * 참여자에게는 아무 신호 없이 다른 팟이 되어 버린다. 대신 총대는 채팅으로 정리할 수 있다.
+	 *
+	 * <p>수정 폼을 열어 둔 사이 누군가 참여하는 경합은 {@code Pot.version} 낙관적 락이 막는다 —
+	 * 참여 트랜잭션이 먼저 커밋되면 이 저장이 실패하고 {@code CONFLICT}로 응답된다.
+	 * 여기 인원 검사만 두면 폼을 연 시점의 낡은 값으로 통과할 수 있다.
+	 *
+	 * <p>가게명·만날 장소가 바뀌면 연결된 채팅방의 이름·장소도 함께 맞춘다. 채팅방은 이 값들을
+	 * 자체 컬럼으로 들고 있어(팟을 모른다) 여기서 밀어주지 않으면 옛 값이 그대로 남는다.
+	 *
+	 * <p>수정 결과를 돌려주지 않는 이유는, 상세를 만들려면 총대 닉네임·총대 횟수·참여자 목록까지
+	 * 다시 긁어야 하는데 프론트는 저장 직후 목록/상세를 어차피 새로 조회하기 때문이다.
+	 */
+	@Transactional
+	public void update(Long memberId, Long potId, PotUpdateRequest request) {
+		Pot pot = findPot(potId);
+		requireHost(pot, memberId);
+
+		if (!pot.isActive()) {
+			throw new BusinessException(ErrorCode.POT_NOT_ACTIVE, "이미 나눔이 완료된 팟입니다.");
+		}
+		if (!pot.hasOnlyHost()) {
+			throw new BusinessException(ErrorCode.POT_NOT_EDITABLE);
+		}
+		validateDeadline(request.deadline());
+
+		pot.update(
+			request.title(),
+			request.description(),
+			request.storeName(),
+			request.storeUrl(),
+			request.meetingPlace(),
+			request.meetingRoadAddress(),
+			request.meetingJibunAddress(),
+			request.latitude(),
+			request.longitude(),
+			request.capacity(),
+			request.minOrderAmount(),
+			request.deadline(),
+			request.bankName(),
+			request.accountNumber(),
+			request.accountHolder()
+		);
+
+		if (pot.getChatRoomId() != null) {
+			chatService.updateRoomInfo(pot.getChatRoomId(), pot.getStoreName(), pot.getMeetingPlace());
+		}
+	}
+
+	/**
+	 * 모집 조건 확장. 정원·마감시간을 늘린다. 참여자가 이미 있어도 열려 있는 유일한 변경 경로다.
+	 *
+	 * <p>{@link #update}와 나눈 이유는 규칙이 반대여서다. 전체 수정은 참여자가 없을 때만 열리는
+	 * 대신 무엇이든 바꿀 수 있고, 이쪽은 참여자가 있어도 열리는 대신 늘리는 방향만 허용한다.
+	 * 늘리는 방향은 참여자에게 손해가 없다 — 자리가 더 생기고 시간이 더 생긴다.
+	 *
+	 * <p>마감이 이미 지난 팟도 늘릴 수 있다. 정원이 안 차서 마감만 지난 팟을 다시 살리는 것이
+	 * 이 기능의 주 용도다. 상태가 {@code DONE}이면 막는다 — 끝난 팟을 되살리는 통로는 아니다.
+	 *
+	 * <p>값이 실제로 바뀐 경우에만 채팅방에 공지한다. 참여자는 이 두 값을 보고 들어왔으므로
+	 * 조용히 바꾸면 안 되고, 반대로 같은 값으로 저장했는데 공지가 나가면 방이 시끄러워진다.
+	 */
+	@Transactional
+	public void expandRecruitment(Long memberId, Long potId, PotRecruitmentUpdateRequest request) {
+		Pot pot = findPot(potId);
+		requireHost(pot, memberId);
+
+		if (!pot.isActive()) {
+			throw new BusinessException(ErrorCode.POT_NOT_ACTIVE, "이미 나눔이 완료된 팟입니다.");
+		}
+		if (!pot.isExpansionOf(request.capacity(), request.deadline())) {
+			throw new BusinessException(ErrorCode.POT_RECRUITMENT_CANNOT_SHRINK);
+		}
+		validateDeadline(request.deadline());
+
+		List<String> changes = describeExpansion(pot, request);
+		pot.expandRecruitment(request.capacity(), request.deadline());
+
+		if (!changes.isEmpty() && pot.getChatRoomId() != null) {
+			chatService.postSystemNoticeMessage(pot.getChatRoomId(), String.join(", ", changes) + " 변경되었어요");
+		}
+	}
+
+	/**
+	 * 공지 문구용 변경 내역. 확장 직전에 뽑아야 이전 값을 읽을 수 있다.
+	 *
+	 * <p>마감시간은 참여자의 시계 기준으로 읽혀야 하므로 KST 벽시계로 찍는다 — 저장된
+	 * {@link OffsetDateTime}을 그대로 문자열화하면 요청이 보낸 오프셋이 그대로 노출된다.
+	 */
+	private List<String> describeExpansion(Pot pot, PotRecruitmentUpdateRequest request) {
+		List<String> changes = new ArrayList<>();
+		if (request.capacity() != pot.getCapacity()) {
+			changes.add("배달팟 인원이 " + request.capacity() + "명으로");
+		}
+		if (!request.deadline().isEqual(pot.getDeadline())) {
+			changes.add("마감 시간이 "
+				+ request.deadline().atZoneSameInstant(KST).format(DEADLINE_NOTICE_FORMAT) + "으로");
+		}
+		return changes;
 	}
 
 	/**
