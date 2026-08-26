@@ -17,9 +17,6 @@ export function PotCard({ pot, onOpen, onComplete, isCompleting }: PotCardProps)
     ? '주문 진행 중'
     : formatDeadline(pot.deadline)
 
-  // 총대 혼자일 때만 수정이 열린다. 서버 판정과 같은 기준이라 저장 단계에서 튕기지 않는다.
-  const canEdit = pot.potId != null && (pot.currentMemberCount ?? 1) <= 1
-
   return (
     <article className="bg-bg rounded-[20px] border p-5 shadow-sm">
       <button
@@ -50,27 +47,16 @@ export function PotCard({ pot, onOpen, onComplete, isCompleting }: PotCardProps)
       {pot.isHost && (
         <div className="mt-5 grid grid-cols-2 gap-2 border-t pt-4">
           {/*
-            참여자가 들어온 순간부터 수정을 닫는다. 이미 전달된 메뉴가 다른 가게 기준이 되고,
-            참여자가 보고 들어온 계좌·장소가 조용히 바뀌기 때문이다(서버도 같은 규칙으로 막는다).
+            참여자 유무와 무관하게 열어 둔다. 수정 화면이 알아서 갈린다 — 총대 혼자면 전체 폼,
+            참여자가 있으면 배달팟 인원·마감 시간만 손댈 수 있는 잠금 화면이다.
           */}
-          {canEdit ? (
-            <Link
-              to="/pots/$potId/edit"
-              params={{ potId: String(pot.potId) }}
-              className="text-fg flex h-10 items-center justify-center rounded-lg border text-sm font-medium"
-            >
-              내용 수정
-            </Link>
-          ) : (
-            <button
-              type="button"
-              disabled
-              title="참여자가 있어 내용을 수정할 수 없어요"
-              className="text-muted-fg h-10 rounded-lg border text-sm disabled:opacity-70"
-            >
-              내용 수정
-            </button>
-          )}
+          <Link
+            to="/pots/$potId/edit"
+            params={{ potId: String(pot.potId) }}
+            className="text-fg flex h-10 items-center justify-center rounded-lg border text-sm font-medium"
+          >
+            내용 수정
+          </Link>
           <button
             type="button"
             disabled={isCompleting || !pot.potId}

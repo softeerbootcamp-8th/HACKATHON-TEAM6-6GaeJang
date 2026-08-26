@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   getGetPotQueryKey,
   getGetPotsQueryKey,
+  useExpandRecruitment,
   useGetPot,
   useUpdatePot,
 } from '@/api/generated/pot/pot'
@@ -12,6 +13,7 @@ import { requireAuth } from '@/lib/authGuard'
 import type { PotDetailResponse } from '@/api/generated/model'
 
 import { PotForm, type PotFormInitialValues } from '../../-components/PotForm'
+import { RecruitmentForm } from '../../-components/RecruitmentForm'
 
 /** 마감 시간 선택 휠이 30분 단위라, 남은 시간을 역산할 때도 같은 단위로 맞춘다. */
 const MINUTE_STEP = 30
@@ -24,8 +26,16 @@ export const Route = createFileRoute('/pots/$potId/edit/')({
 /**
  * 배달팟 정보 수정. 홈 카드의 "내용 수정"에서 들어온다.
  *
- * <p>참여자가 한 명이라도 있으면 서버가 POT_NOT_EDITABLE로 막는다. 홈 카드에서 이미 버튼을
- * 비활성화하지만 이 화면을 열어 둔 사이 누가 참여할 수 있어서, 저장 시점의 서버 판정이 정본이다.
+ * <p>참여자 유무에 따라 화면과 API가 갈린다.
+ *
+ * <ul>
+ *   <li>총대 혼자 — 전체 폼 + {@code PUT /api/pots/{potId}}. 무엇이든 바꿀 수 있다.</li>
+ *   <li>참여자 있음 — 잠금 화면 + {@code PATCH /api/pots/{potId}/recruitment}.
+ *       배달팟 인원·마감 시간만, 그것도 늘리는 방향으로만 바뀐다.</li>
+ * </ul>
+ *
+ * <p>이 화면을 열어 둔 사이 누가 참여하면 판정이 뒤집힌다. 그때는 전체 수정 저장이 서버에서
+ * POT_NOT_EDITABLE로 거부된다 — 화면이 미리 알 방법이 없으므로 저장 시점의 서버 판정이 정본이다.
  */
 function EditPotPage() {
   const { potId: potIdParam } = useParams({ from: '/pots/$potId/edit/' })
@@ -43,6 +53,16 @@ function EditPotPage() {
   }
 
   const backToPot = () => navigate({ to: '/', search: { openPotId: potId } })
+
+  const expandRecruitment = useExpandRecruitment({
+    mutation: {
+      onSuccess: () => {
+        invalidatePot()
+        backToPot()
+      },
+      onError: (mutationError) => setErrorMessage(mutationError.message),
+    },
+  })
 
   const updatePot = useUpdatePot({
     mutation: {
@@ -64,6 +84,26 @@ function EditPotPage() {
         <p role="alert" className="text-down px-5 pt-10 text-sm">
           {error?.message || '배달팟 정보를 불러오지 못했어요.'}
         </p>
+      </EditPotShell>
+    )
+  }
+
+  // 총대는 항상 참여자로 세어지므로, 2명부터가 "다른 사람이 들어온" 상태다.
+  const hasParticipants = (pot.currentMemberCount ?? 1) > 1
+
+  if (hasParticipants) {
+    return (
+      <EditPotShell>
+        <RecruitmentForm
+          pot={pot}
+          isSubmitting={expandRecruitment.isPending}
+          externalError={errorMessage}
+          onSubmit={(data) => {
+            setErrorMessage('')
+            expandRecruitment.mutate({ potId, data })
+          }}
+          onClose={backToPot}
+        />
       </EditPotShell>
     )
   }
