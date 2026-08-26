@@ -5,6 +5,7 @@ import { customInstance } from '@/lib/axios'
 import { formatPhoneNumber, unformatPhoneNumber } from '@/lib/phoneFormatter'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useCapsLockWarning } from '@/hooks/useCapsLockWarning'
 import { useNicknameAvailability } from '../../-hooks/useNicknameAvailability'
 
 type AccountInfoStepProps = {
@@ -35,6 +36,7 @@ export function AccountInfoStep({
 
   const timerRef = useRef<number | null>(null)
   const rawPhone = unformatPhoneNumber(phoneNumber)
+  const { capsLockOn, onKeyUp, onBlur } = useCapsLockWarning()
 
   const { status: nickStatus, isAvailable: isNickAvailable } =
     useNicknameAvailability(nickname)
@@ -229,10 +231,17 @@ export function AccountInfoStep({
                 value={password}
                 maxLength={20}
                 onChange={(e) => onChangePassword(e.target.value)}
+                onKeyUp={onKeyUp}
+                onBlur={onBlur}
                 aria-label="비밀번호"
                 className="w-full bg-transparent text-base text-fg outline-none placeholder:text-muted-fg"
               />
             </div>
+            {capsLockOn && (
+              <p role="alert" className="text-down text-xs">
+                Caps Lock이 켜져 있습니다.
+              </p>
+            )}
           </div>
 
           {/* 닉네임 영역 (State H) */}

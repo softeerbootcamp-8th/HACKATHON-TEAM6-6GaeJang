@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { getMeQueryKey, useLogin } from '@/api/generated/auth/auth'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { useCapsLockWarning } from '@/hooks/useCapsLockWarning'
 import { redirectIfAuthenticated } from '@/lib/authGuard'
 import { formatPhoneNumber, unformatPhoneNumber } from '@/lib/phoneFormatter'
 
@@ -19,6 +20,7 @@ function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
+  const { capsLockOn, onKeyUp, onBlur } = useCapsLockWarning()
 
   const rawPhone = unformatPhoneNumber(phoneNumber)
   const isValid = rawPhone.length >= 10 && password.length > 0
@@ -88,16 +90,25 @@ function LoginPage() {
           </div>
 
           {/* 비밀번호 입력 필드 (최대 20자) */}
-          <div className="flex h-13 items-center rounded-xl border border-border bg-bg px-3.5 transition-colors focus-within:border-primary">
-            <input
-              type="password"
-              placeholder="비밀번호 입력"
-              value={password}
-              maxLength={20}
-              onChange={(e) => setPassword(e.target.value)}
-              aria-label="비밀번호 입력"
-              className="w-full bg-transparent text-base text-fg outline-none placeholder:text-muted-fg"
-            />
+          <div>
+            <div className="flex h-13 items-center rounded-xl border border-border bg-bg px-3.5 transition-colors focus-within:border-primary">
+              <input
+                type="password"
+                placeholder="비밀번호 입력"
+                value={password}
+                maxLength={20}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyUp={onKeyUp}
+                onBlur={onBlur}
+                aria-label="비밀번호 입력"
+                className="w-full bg-transparent text-base text-fg outline-none placeholder:text-muted-fg"
+              />
+            </div>
+            {capsLockOn && (
+              <p role="alert" className="text-down mt-1 text-sm">
+                Caps Lock이 켜져 있습니다.
+              </p>
+            )}
           </div>
 
           {/* 자동 로그인 체크박스 */}
