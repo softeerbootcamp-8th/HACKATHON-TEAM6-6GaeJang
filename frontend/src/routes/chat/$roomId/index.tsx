@@ -1,16 +1,24 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { LogOut } from 'lucide-react'
+import { ChevronLeft, LogOut } from 'lucide-react'
 
 import { useMe } from '@/api/generated/auth/auth'
-import { getGetMyRoomsQueryKey, useGetMessages, useGetRoom, useMarkRead } from '@/api/generated/chat/chat'
+import {
+  getGetMyRoomsQueryKey,
+  useGetMessages,
+  useGetRoom,
+  useMarkRead,
+} from '@/api/generated/chat/chat'
 import { PotDetailResponseStatus } from '@/api/generated/model'
 import type { ChatMessageResponse } from '@/api/generated/model'
 import { useGetPotByChatRoom, useLeavePot } from '@/api/generated/pot/pot'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { requireAuth } from '@/lib/authGuard'
+import { formatDeadline } from '@/routes/pots/-utils/formatDeadline'
 
 import { DateDivider } from './-components/DateDivider'
+import { LeavePotDialog } from './-components/LeavePotDialog'
 import { MessageBubble } from './-components/MessageBubble'
 import { MessageComposer } from './-components/MessageComposer'
 import { PotAccountBanner } from './-components/PotAccountBanner'
@@ -26,7 +34,11 @@ function sameDay(aIso?: string, bIso?: string) {
   if (!aIso || !bIso) return false
   const a = new Date(aIso)
   const b = new Date(bIso)
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
 }
 
 function ChatRoomPage() {
@@ -44,10 +56,12 @@ function ChatRoomPage() {
   // 배달팟이 아닌 방(수동 생성 등)이면 404가 정상이라 재시도하지 않는다 — 배너/나가기 버튼만 조용히 숨긴다.
   const pot = useGetPotByChatRoom(roomId, { query: { enabled: !!member, retry: false } })
   const potData = pot.data?.data
+  const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
 
   const leavePot = useLeavePot({
     mutation: {
       onSuccess: () => {
+        setIsLeaveDialogOpen(false)
         queryClient.invalidateQueries({ queryKey: getGetMyRoomsQueryKey() })
         void navigate({ to: '/chat' })
       },
@@ -56,7 +70,6 @@ function ChatRoomPage() {
 
   const handleLeave = () => {
     if (!potData?.potId) return
-    if (!window.confirm('배달팟에서 나가시겠어요? 이 채팅방을 더 이상 볼 수 없어요.')) return
     leavePot.mutate({ potId: potData.potId })
   }
 
@@ -125,31 +138,50 @@ function ChatRoomPage() {
   const roomName = room.data?.data?.name ?? `채팅방 ${roomId}`
   const memberCount = room.data?.data?.memberCount
   const location = room.data?.data?.location
-  const subtitle = [memberCount != null ? `멤버 ${memberCount}명` : null, location].filter(Boolean).join(' · ')
+  const subtitle = [memberCount != null ? `멤버 ${memberCount}명` : null, location]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
-    <main aria-label={roomName} className="app-shell">
+    <main aria-label={roomName} className="app-shell h-[100dvh]">
       <div className="flex h-full flex-col">
-        <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
-              ←
+        <header className="flex shrink-0 items-center justify-between gap-1 px-3 pt-[max(12px,env(safe-area-inset-top))] pb-2">
+          <div className="flex min-w-0 items-center">
+            <Link
+              to="/chat"
+              aria-label="채팅 목록으로 돌아가기"
+              className={buttonVariants({
+                variant: 'ghost',
+                size: 'icon',
+                className: 'size-11 shrink-0 rounded-full',
+              })}
+            >
+              <ChevronLeft className="size-5" aria-hidden />
             </Link>
             <div className="min-w-0">
-              <h1 className="truncate font-semibold">{roomName}</h1>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <h1 className="truncate font-semibold">{roomName}</h1>
+                {potData?.deadline && (
+                  <span className="bg-primary-soft text-primary shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-semibold">
+                    {formatDeadline(potData.deadline)}
+                  </span>
+                )}
+              </div>
               {subtitle && <p className="text-muted-fg truncate text-xs">{subtitle}</p>}
             </div>
           </div>
           {potData && (!potData.isHost || potData.status === PotDetailResponseStatus.DONE) && (
-            <button
+            <Button
               type="button"
-              onClick={handleLeave}
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsLeaveDialogOpen(true)}
               disabled={leavePot.isPending}
               aria-label="배달팟 나가기"
-              className="text-muted-fg hover:text-down shrink-0 disabled:opacity-50"
+              className="text-muted-fg hover:text-down size-11 shrink-0 rounded-full"
             >
               <LogOut className="size-5" />
-            </button>
+            </Button>
           )}
         </header>
 
@@ -163,7 +195,7 @@ function ChatRoomPage() {
           </p>
         )}
 
-        <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+        <div className="flex-1 space-y-3 overflow-y-auto px-5 py-3">
           {history.isPending ? (
             <p className="text-muted-fg text-center text-sm">불러오는 중…</p>
           ) : history.isError ? (
@@ -180,7 +212,9 @@ function ChatRoomPage() {
                   <MessageBubble
                     message={message}
                     isMine={message.senderId === member.id}
-                    nickname={message.senderId != null ? nicknameById.get(message.senderId) : undefined}
+                    nickname={
+                      message.senderId != null ? nicknameById.get(message.senderId) : undefined
+                    }
                     myNickname={myNickname}
                   />
                 </Fragment>
@@ -192,6 +226,13 @@ function ChatRoomPage() {
 
         <MessageComposer disabled={!connected} onSend={sendMessage} onSendImage={handleSendImage} />
       </div>
+
+      <LeavePotDialog
+        open={isLeaveDialogOpen}
+        isLeaving={leavePot.isPending}
+        onCancel={() => setIsLeaveDialogOpen(false)}
+        onConfirm={handleLeave}
+      />
     </main>
   )
 }

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { ArrowUp, Plus } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 interface MessageComposerProps {
@@ -28,16 +29,10 @@ export function MessageComposer({ disabled, onSend, onSendImage }: MessageCompos
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-2 border-t p-3">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => fileInputRef.current?.click()}
-        aria-label="사진 첨부"
-        className="bg-muted text-muted-fg flex size-10 shrink-0 items-center justify-center rounded-full disabled:opacity-50"
-      >
-        <Plus className="size-5" />
-      </button>
+    <form
+      onSubmit={handleSubmit}
+      className="bg-bg flex shrink-0 items-center gap-3 border-t px-4 pt-2 pb-4"
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -45,7 +40,18 @@ export function MessageComposer({ disabled, onSend, onSendImage }: MessageCompos
         onChange={handleFileChange}
         className="hidden"
       />
-      <div className="bg-muted flex flex-1 items-center rounded-full px-4">
+      <div className="bg-muted flex min-w-0 flex-1 items-center rounded-full">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          disabled={disabled}
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="사진 첨부"
+          className="text-muted-fg hover:bg-border/50 size-11 shrink-0 rounded-full"
+        >
+          <Plus className="size-5" aria-hidden />
+        </Button>
         <input
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -53,20 +59,21 @@ export function MessageComposer({ disabled, onSend, onSendImage }: MessageCompos
           maxLength={2000}
           disabled={disabled}
           aria-label="메시지 입력"
-          className="text-fg placeholder:text-muted-fg w-full bg-transparent py-2.5 text-sm outline-none disabled:opacity-50"
+          className="text-fg placeholder:text-muted-fg min-w-0 flex-1 bg-transparent py-2.5 pr-4 text-base leading-6 outline-none disabled:opacity-50"
         />
       </div>
-      <button
+      <Button
         type="submit"
+        size="icon"
         disabled={disabled || content.trim().length === 0}
         aria-label="전송"
         className={cn(
-          'flex size-10 shrink-0 items-center justify-center rounded-full transition-colors',
+          'size-11 shrink-0 rounded-full transition-colors',
           'bg-primary text-primary-fg disabled:opacity-50',
         )}
       >
-        <ArrowUp className="size-5" />
-      </button>
+        <ArrowUp className="size-5" aria-hidden />
+      </Button>
     </form>
   )
 }

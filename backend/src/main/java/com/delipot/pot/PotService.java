@@ -50,19 +50,10 @@ public class PotService {
 	/** 홈 목록 조회 반경. 걸어가서 받아올 수 있는 거리로 기획에서 정한 값이다. */
 	private static final int SEARCH_RADIUS_METERS = 300;
 
-	/**
-	 * 총대가 나눔 완료를 누르지 않았을 때 자동 완료로 넘기는 유예 시간.
-	 *
-	 * <p>마감시간부터 재는 이유는 그 이후가 주문·배달·수령 구간이어서다. 배달이 늦거나 총대가
-	 * 버튼 누르기를 잊어도 이 시간이면 끝나 있다. 너무 짧으면 아직 진행 중인 팟이 참여자 목록에서
-	 * 사라져 총대 계좌를 찾을 길이 끊긴다.
-	 */
+	/** 총대가 나눔 완료를 누르지 않았을 때 자동 완료로 넘기는 유예 시간. 마감시간부터 잰다. */
 	private static final int AUTO_COMPLETE_HOURS = 5;
 
-	/**
-	 * 한 번에 내려줄 팟 수의 상한. 300m 반경이면 보통 수십 건이지만, 밀집 지역에서 폭증했을 때
-	 * TEXT 설명까지 전부 직렬화되는 것을 막는다. 페이징이 붙으면 페이지 크기로 대체된다.
-	 */
+	/** 한 번에 내려줄 팟 수의 상한. 페이징이 붙으면 페이지 크기로 대체된다. */
 	private static final Limit MAX_RESULTS = Limit.of(100);
 
 	private final PotRepository potRepository;
@@ -72,21 +63,12 @@ public class PotService {
 	private final Clock clock;
 
 	/**
-	 * 팟 생성. 총대를 첫 참여자로 기록하고, 총대 혼자 있는 채팅방을 함께 만든다.
+	 * 팟 생성. 총대를 첫 참여자로 기록하고, 총대 혼자 있는 채팅방과 가게 링크 말풍선을 함께 만든다.
 	 *
 	 * <p>방 생성이 같은 트랜잭션인 이유는 방 없는 팟이 남으면 복구 경로가 없어서다 — 참여자가
-	 * "메뉴 전달하기"를 눌렀을 때 들어갈 방이 없고, 총대에게 방을 다시 만들 화면도 없다.
-	 * 방 생성이 실패하면 팟도 만들어지지 않는 것이 낫다(총대는 다시 누르면 된다).
+	 * 들어갈 방이 없고, 총대에게 방을 다시 만들 화면도 없다.
 	 *
-	 * <p>만날 장소를 방 생성 요청에 함께 실어 보낸다 — 채팅 도메인이 배달팟을 몰라도 헤더에
-	 * 장소를 띄울 수 있게, 채팅 쪽이 자체 보유하는 필드에 값만 얹어주는 것이다.
-	 *
-	 * <p>의존 방향은 팟 → 채팅 단방향으로 유지한다. 채팅이 팟을 부르면 순환 참조가 되어
-	 * 빈 생성 단계에서 실패한다. 채팅방에서 팟 정보가 필요하면 {@code Pot.chatRoomId}를
-	 * 거꾸로 타는 조회({@code GET /api/pots/by-chat-room/{chatRoomId}})를 쓴다.
-	 *
-	 * <p>방을 만든 직후 총대가 입력한 가게 링크를 총대 명의 말풍선으로 바로 올린다. 참여자가
-	 * 들어왔을 때 무슨 가게인지 스크롤을 올리지 않고도 바로 볼 수 있어야 해서다.
+	 * <p>의존 방향은 팟 → 채팅 단방향을 유지한다. 채팅이 팟을 부르면 순환 참조가 된다.
 	 */
 	@Transactional
 	public PotCreateResponse create(Long hostId, PotCreateRequest request) {
@@ -123,21 +105,14 @@ public class PotService {
 	}
 
 	/**
-	 * 팟 내용 수정. 총대 본인이, 아직 참여자가 없고, 나눔이 끝나지 않은 팟만 고칠 수 있다.
-	 *
-	 * <p>참여자가 한 명이라도 들어오면 막는다({@link ErrorCode#POT_NOT_EDITABLE}). 이미 전달된
-	 * 메뉴는 그 가게 기준이고, 참여자는 그 계좌·그 장소를 보고 들어왔다. 값을 갈아치우면
-	 * 참여자에게는 아무 신호 없이 다른 팟이 되어 버린다. 대신 총대는 채팅으로 정리할 수 있다.
+	 * 팟 내용 수정. 총대 본인이, 아직 참여자가 없고({@link ErrorCode#POT_NOT_EDITABLE}),
+	 * 나눔이 끝나지 않은 팟만 고칠 수 있다.
 	 *
 	 * <p>수정 폼을 열어 둔 사이 누군가 참여하는 경합은 {@code Pot.version} 낙관적 락이 막는다 —
-	 * 참여 트랜잭션이 먼저 커밋되면 이 저장이 실패하고 {@code CONFLICT}로 응답된다.
 	 * 여기 인원 검사만 두면 폼을 연 시점의 낡은 값으로 통과할 수 있다.
 	 *
-	 * <p>가게명·만날 장소가 바뀌면 연결된 채팅방의 이름·장소도 함께 맞춘다. 채팅방은 이 값들을
-	 * 자체 컬럼으로 들고 있어(팟을 모른다) 여기서 밀어주지 않으면 옛 값이 그대로 남는다.
-	 *
-	 * <p>수정 결과를 돌려주지 않는 이유는, 상세를 만들려면 총대 닉네임·총대 횟수·참여자 목록까지
-	 * 다시 긁어야 하는데 프론트는 저장 직후 목록/상세를 어차피 새로 조회하기 때문이다.
+	 * <p>가게명·만날 장소가 바뀌면 연결된 채팅방의 이름·장소도 함께 맞춘다. 채팅방은 팟을 모르므로
+	 * 여기서 밀어주지 않으면 옛 값이 그대로 남는다.
 	 */
 	@Transactional
 	public void update(Long memberId, Long potId, PotUpdateRequest request) {
@@ -178,15 +153,10 @@ public class PotService {
 	/**
 	 * 모집 조건 확장. 정원·마감시간을 늘린다. 참여자가 이미 있어도 열려 있는 유일한 변경 경로다.
 	 *
-	 * <p>{@link #update}와 나눈 이유는 규칙이 반대여서다. 전체 수정은 참여자가 없을 때만 열리는
-	 * 대신 무엇이든 바꿀 수 있고, 이쪽은 참여자가 있어도 열리는 대신 늘리는 방향만 허용한다.
-	 * 늘리는 방향은 참여자에게 손해가 없다 — 자리가 더 생기고 시간이 더 생긴다.
+	 * <p>마감이 이미 지난 팟도 늘릴 수 있다(정원이 안 차 마감만 지난 팟을 살리는 것이 주 용도).
+	 * {@code DONE}이면 막는다 — 끝난 팟을 되살리는 통로는 아니다.
 	 *
-	 * <p>마감이 이미 지난 팟도 늘릴 수 있다. 정원이 안 차서 마감만 지난 팟을 다시 살리는 것이
-	 * 이 기능의 주 용도다. 상태가 {@code DONE}이면 막는다 — 끝난 팟을 되살리는 통로는 아니다.
-	 *
-	 * <p>값이 실제로 바뀐 경우에만 채팅방에 공지한다. 참여자는 이 두 값을 보고 들어왔으므로
-	 * 조용히 바꾸면 안 되고, 반대로 같은 값으로 저장했는데 공지가 나가면 방이 시끄러워진다.
+	 * <p>값이 실제로 바뀐 경우에만 채팅방에 공지한다. 같은 값 저장에 공지가 나가면 방이 시끄러워진다.
 	 */
 	@Transactional
 	public void expandRecruitment(Long memberId, Long potId, PotRecruitmentUpdateRequest request) {
@@ -211,9 +181,7 @@ public class PotService {
 
 	/**
 	 * 공지 문구용 변경 내역. 확장 직전에 뽑아야 이전 값을 읽을 수 있다.
-	 *
-	 * <p>마감시간은 참여자의 시계 기준으로 읽혀야 하므로 KST 벽시계로 찍는다 — 저장된
-	 * {@link OffsetDateTime}을 그대로 문자열화하면 요청이 보낸 오프셋이 그대로 노출된다.
+	 * 마감시간은 KST 벽시계로 찍는다 — 저장값을 그대로 쓰면 요청이 보낸 오프셋이 노출된다.
 	 */
 	private List<String> describeExpansion(Pot pot, PotRecruitmentUpdateRequest request) {
 		List<String> changes = new ArrayList<>();
@@ -231,15 +199,12 @@ public class PotService {
 	 * 홈 목록. 화면의 세 섹션을 각각 다른 조건으로 뽑아 한 번에 내려준다.
 	 *
 	 * <ul>
-	 *   <li>{@code hosted}/{@code joined} — 내가 속한 팟. 반경도 마감시간도 보지 않는다. 마감 후가
-	 *       오히려 중요한 구간(주문·입금·수령)이고, 여기서 사라지는 조건은 나눔 완료뿐이다.</li>
-	 *   <li>{@code all} — 300m 이내, 마감 전, 정원 여유 있고, 내가 속하지 않은 팟.
-	 *       마감시간이 지나면 참여할 수 없으니 참여하지 않은 사람에게는 보일 이유가 없다.</li>
+	 *   <li>{@code hosted}/{@code joined} — 내가 속한 팟. 반경도 마감시간도 보지 않는다.</li>
+	 *   <li>{@code all} — 300m 이내, 마감 전, 정원 여유 있고, 내가 속하지 않은 팟.</li>
 	 * </ul>
 	 *
 	 * <p>{@code readOnly}가 아닌 이유는 맨 앞에서 방치된 팟(마감 + 5시간)을 일괄 {@code DONE}으로
-	 * 전이시키고, 각 채팅방에 나눔완료 공지를 남기기 때문이다. 이걸 안 하면 참여자 목록에 끝난 팟이
-	 * 영구히 쌓이고, 참여자들은 방이 왜 조용해졌는지 알 방법이 없다.
+	 * 전이시키고 각 채팅방에 완료 공지를 남기기 때문이다.
 	 */
 	@Transactional
 	public PotListResponse findPots(Long memberId, PotListRequest request) {
@@ -272,22 +237,13 @@ public class PotService {
 
 	/**
 	 * 팟 참여. 참여 기록 + 인원 증가 + 채팅방 입장 + 입장/메뉴 공지가 한 트랜잭션이다.
+	 * 참여가 곧 메뉴 전달이라 메뉴를 {@link PotMember}에 함께 저장한다.
 	 *
-	 * <p>참여는 곧 메뉴 전달이다. 입력한 메뉴는 {@link PotMember}에 함께 저장된다. 메뉴를 따로
-	 * 보내는 API를 두지 않는 이유는 화면이 한 버튼("총대에게 메뉴 전달하기")으로 둘을 동시에 하기
-	 * 때문이다 — 나누면 참여는 됐는데 메뉴는 없는 중간 상태가 생긴다.
+	 * <p>아래 검사들은 정상 요청에 친절한 에러를 주기 위한 선검사다. 동시 요청의 정합성은
+	 * 두 번째 겹이 보장한다 — 정원은 {@code Pot.version} 낙관적 락({@code CONFLICT}),
+	 * 중복 참여는 {@code pot_members} unique 제약({@link #saveMembership}이 번역).
 	 *
-	 * <p>채팅방 입장·공지 순서: 멤버십 추가 → 입장 공지 → 메뉴 공지. 닉네임은 채팅이 몰라도 되게
-	 * 여기서 조회해 완성된 문구로 넘긴다({@code postSystemNoticeMessage} 계약).
-	 *
-	 * <p>정원 초과를 막는 건 두 겹이다. 여기서 {@link Pot#isFull()}로 먼저 걸러내고,
-	 * 두 사람이 같은 순간에 마지막 자리를 노렸을 때는 {@code Pot.version} 낙관적 락이 막는다
-	 * (한쪽 커밋이 실패하고 {@code CONFLICT}로 응답된다). 앞의 검사만 두면 둘 다 통과해 5/4가 된다.
-	 *
-	 * <p>중복 참여도 같은 구조다. {@code existsByPotIdAndMemberId}는 정상 요청에 친절한 에러를 주기
-	 * 위한 선검사이고, 같은 사람이 버튼을 두 번 빠르게 눌러 두 요청이 모두 통과한 경우의 정합성은
-	 * {@code pot_members}의 unique 제약이 보장한다. 그 위반을 {@link #saveMembership}이
-	 * {@code POT_ALREADY_JOINED}로 번역한다 — 번역이 없으면 사용자에게 500이 나간다.
+	 * <p>닉네임은 채팅이 회원을 몰라도 되게 여기서 조회해 완성된 문구로 넘긴다.
 	 */
 	@Transactional
 	public PotJoinResponse join(Long memberId, Long potId, PotJoinRequest request) {
@@ -319,20 +275,12 @@ public class PotService {
 	}
 
 	/**
-	 * 참여 기록 저장. unique 제약 위반만 {@code POT_ALREADY_JOINED}로 번역한다.
+	 * 참여 기록 저장. unique 제약 위반만 {@code POT_ALREADY_JOINED}로 번역한다 —
+	 * 번역이 없으면 동시 중복 참여가 사용자에게 500으로 나간다.
 	 *
-	 * <p>앞의 {@code existsByPotIdAndMemberId} 검사를 두고도 이게 필요한 이유는, 같은 사람이 참여
-	 * 버튼을 두 번 빠르게 눌렀을 때 두 요청이 모두 {@code exists = false}를 보고 통과하기 때문이다.
-	 * 그때 늦게 온 쪽의 INSERT가 {@code uk_pot_members_pot_member}에 걸린다. 선검사는 정상 요청에
-	 * 친절한 에러를 주기 위한 것이고, 동시 요청의 최종 정합성은 DB 제약이 보장한다 —
-	 * 번역이 없으면 그 결과가 사용자에게 500으로 나간다.
-	 *
-	 * <p>{@code saveAndFlush}가 아니라 {@code save}인 이유는 {@link PotMember}의 PK가
-	 * {@code IDENTITY}여서다. Hibernate가 생성된 PK를 받아야 엔티티를 영속 상태로 만들 수 있어
-	 * INSERT가 이 호출에서 바로 실행된다 — 별도 flush 없이 여기서 예외가 잡힌다.
-	 *
-	 * <p>예외를 잡은 뒤 DB 작업을 더 하지 않고 즉시 던지는 것이 중요하다. 제약 위반이 나면 Hibernate
-	 * 세션이 오염돼 이후 flush 동작을 보장할 수 없다.
+	 * <p>{@code saveAndFlush}가 아니어도 되는 이유는 PK가 {@code IDENTITY}라 INSERT가 이 호출에서
+	 * 바로 실행되기 때문이다. 예외를 잡은 뒤 DB 작업을 더 하지 않고 즉시 던지는 것이 중요하다 —
+	 * 제약 위반이 나면 Hibernate 세션이 오염돼 이후 flush 동작을 보장할 수 없다.
 	 */
 	private void saveMembership(PotMember membership) {
 		try {
@@ -346,14 +294,11 @@ public class PotService {
 	}
 
 	/**
-	 * 중복 참여 제약 위반인지. 제약 이름으로 좁혀 판정한다.
+	 * 중복 참여 제약 위반인지. 제약 이름으로 좁혀 판정한다 — 전부 409로 포장하면 NOT NULL 위반 같은
+	 * 코드 버그가 조용히 묻힌다.
 	 *
-	 * <p>{@code DataIntegrityViolationException}을 전부 중복 참여로 넘기면 NOT NULL 위반 같은
-	 * 코드 버그까지 409로 포장돼 조용히 묻힌다. 그런 위반은 500으로 남아야 로그에서 발견된다.
-	 *
-	 * <p>제약 이름을 정확히 비교하지 않고 {@code contains}로 보는 이유는 DB마다 장식이 붙어서다 —
-	 * H2는 {@code PUBLIC.UK_POT_MEMBERS_POT_MEMBER INDEX ...}, MySQL은
-	 * {@code pot_members.uk_pot_members_pot_member}로 돌려준다. 대소문자도 갈려 무시하고 비교한다.
+	 * <p>{@code contains}로 보는 이유는 DB마다 장식이 붙어서다 — h2는
+	 * {@code PUBLIC.UK_... INDEX ...}, MySQL은 {@code pot_members.uk_...}로 돌려준다.
 	 */
 	private boolean isDuplicateMembership(DataIntegrityViolationException e) {
 		Throwable cause = e.getCause();
@@ -369,9 +314,7 @@ public class PotService {
 
 	/**
 	 * 팟 상세. 참여 전 첫 진입 화면과 채팅방 상단 헤더가 함께 쓴다.
-	 *
-	 * <p>나눔 완료된 팟도 조회는 된다. 채팅방은 완료 후에도 남아 있고, 그 화면 상단이 이 API를
-	 * 쓰기 때문에 여기서 막으면 완료된 팟의 채팅방 헤더가 비어버린다.
+	 * 나눔 완료된 팟도 조회된다 — 막으면 완료된 팟의 채팅방 헤더가 비어버린다.
 	 */
 	@Transactional(readOnly = true)
 	public PotDetailResponse findDetail(Long memberId, Long potId) {
@@ -379,9 +322,8 @@ public class PotService {
 	}
 
 	/**
-	 * 채팅방 헤더/배너가 potId가 아니라 roomId만 갖고 있을 때 쓰는 역조회.
-	 * {@code Pot.chatRoomId}는 단방향(팟 → 채팅)이라 채팅 쪽에는 이 관계가 없다 — 그래서
-	 * 팟 쪽에 열어준다({@link Pot} 클래스 주석 참고). 그 외 필드·정책은 {@link #findDetail}과 동일하다.
+	 * 채팅방 헤더/배너가 potId 없이 roomId만 갖고 있을 때 쓰는 역조회.
+	 * 필드·정책은 {@link #findDetail}과 동일하다.
 	 */
 	@Transactional(readOnly = true)
 	public PotDetailResponse findDetailByChatRoomId(Long memberId, Long chatRoomId) {
@@ -408,12 +350,10 @@ public class PotService {
 	/**
 	 * 팟 나가기. 채팅방의 "팟 나가기" 버튼이 이걸 부른다.
 	 *
-	 * <p>총대는 완료 전엔 나갈 수 없다. 완료 전에 사라지면 정산 계좌 주인이 없어지고 남은 사람들이
-	 * 주문을 이어받을 방법이 없다. 완료 전 총대에게는 대신 나눔 완료가 있다 — 완료 후에는 총대도
-	 * 참여자와 동일하게 나갈 수 있다.
+	 * <p>총대는 완료 전엔 나갈 수 없다 — 정산 계좌 주인이 없어지고 주문을 이어받을 방법이 없다.
+	 * 완료 후에는 총대도 참여자와 동일하게 나갈 수 있다.
 	 *
 	 * <p>채팅방 멤버십도 함께 제거한다 — 나간 뒤에도 방에 남아 메시지를 보고 보낼 수 있으면 안 된다.
-	 * 채팅방에는 "~님이 채팅방을 나갔어요" 안내를 남긴다.
 	 */
 	@Transactional
 	public void leave(Long memberId, Long potId) {
@@ -433,14 +373,8 @@ public class PotService {
 	}
 
 	/**
-	 * 나눔 완료. 총대가 배달을 받아 나누는 것까지 끝냈다는 뜻이고, 참여자를 포함한 모두의 목록에서
-	 * 사라진다. 채팅방은 남으므로 하단 채팅 탭에서 계속 볼 수 있다.
-	 *
-	 * <p>마감시간 전이라도 누를 수 있다. 정원이 다 차서 일찍 주문하고 받아 나눈 경우가 정상 흐름이고,
-	 * 그때 마감시간까지 기다리게 하면 끝난 팟이 전체 목록에 계속 떠 있게 된다.
-	 *
-	 * <p>완료 공지를 채팅방에 남긴다({@code postSystemNoticeMessage} 재사용 — 문구만 다른
-	 * 센터 정렬 시스템 안내라 별도 타입을 만들지 않는다).
+	 * 나눔 완료. 참여자를 포함한 모두의 목록에서 사라지고 채팅방만 남는다.
+	 * 마감시간 전이라도 누를 수 있다 — 정원이 차서 일찍 받아 나눈 경우가 정상 흐름이다.
 	 */
 	@Transactional
 	public void complete(Long memberId, Long potId) {
@@ -470,9 +404,9 @@ public class PotService {
 	/**
 	 * 회원 탈퇴 시 참여 중인 팟에서 자동으로 나가기 처리한다.
 	 *
-	 * <p>호출 전 {@link #hasActiveHostedPot(Long)}로 총대인 ACTIVE 팟이 없음을 이미 확인했다는
-	 * 전제 하에 동작한다 — 그래서 여기서 찾은 ACTIVE 팟은 전부 참여자로만 속한 팟이고, 기존
-	 * {@link #leave(Long, Long)}를 그대로 재사용해도 {@code POT_HOST_CANNOT_LEAVE}에 걸리지 않는다.
+	 * <p>호출 전 {@link #hasActiveHostedPot(Long)}로 총대인 ACTIVE 팟이 없음을 확인했다는 전제로
+	 * 동작한다 — 그래서 {@link #leave(Long, Long)}를 재사용해도 {@code POT_HOST_CANNOT_LEAVE}에
+	 * 걸리지 않는다.
 	 */
 	@Transactional
 	public void leaveAllActivePots(Long memberId) {
@@ -482,13 +416,12 @@ public class PotService {
 	}
 
 	/**
-	 * 마감 후 {@link #AUTO_COMPLETE_HOURS}가 지나도록 총대가 나눔완료를 누르지 않은 팟을 일괄
-	 * {@code DONE}으로 전이시키고, 각 채팅방에 {@link #complete}와 같은 완료 공지를 남긴다.
+	 * 마감 후 {@link #AUTO_COMPLETE_HOURS}가 지나도록 방치된 팟을 일괄 {@code DONE}으로 전이시키고
+	 * 각 채팅방에 완료 공지를 남긴다.
 	 *
-	 * <p>벌크 UPDATE는 엔티티를 거치지 않아 어느 팟이 바뀌었는지 알 수 없으므로, UPDATE 직전에
-	 * 같은 조건으로 채팅방 id만 먼저 조회해 둔다. 두 조회·갱신 사이에 극히 드물게 동시 접속이
-	 * 끼어들면 완료 공지가 중복 발송될 수 있지만, 자동완료 자체가 늦어도 손해가 없는 정리
-	 * 작업이라 이 경합까지 막을 정도는 아니라고 본다({@link PotRepository#completeAbandoned} 설계와 같은 결).
+	 * <p>벌크 UPDATE는 어느 팟이 바뀌었는지 알 수 없으므로 UPDATE 직전에 같은 조건으로 채팅방 id를
+	 * 먼저 조회한다. 그 사이에 동시 접속이 끼어들면 완료 공지가 중복될 수 있는데, 늦어도 손해가 없는
+	 * 정리 작업이라 이 경합까지는 막지 않는다.
 	 */
 	private void completeAbandonedPots(OffsetDateTime now) {
 		OffsetDateTime threshold = now.minusHours(AUTO_COMPLETE_HOURS);
@@ -519,7 +452,7 @@ public class PotService {
 
 	/**
 	 * 카드 아바타용 참여자를 팟 id별로 묶는다. 쿼리는 딱 두 번 — 참여 기록 전체, 닉네임 전체.
-	 * 팟마다 참여자를 조회하면 목록 크기만큼(N+1), 참여자마다 회원을 조회하면 그 곱만큼 쿼리가 나간다.
+	 * 팟마다 조회하면 목록 크기만큼(N+1), 참여자마다 회원을 조회하면 그 곱만큼 쿼리가 나간다.
 	 */
 	private Map<Long, List<PotMemberResponse>> loadMembers(List<Pot> pots) {
 		if (pots.isEmpty()) {
@@ -589,12 +522,8 @@ public class PotService {
 	}
 
 	/**
-	 * {@code @Future}가 과거 시각은 걸러 주지만, "지금부터 30분"이라는 도메인 규칙은
-	 * Bean Validation으로 표현할 수 없어 주입받은 Clock으로 여기서 확인한다.
-	 *
-	 * <p>{@link OffsetDateTime} 비교는 오프셋을 반영한 절대 시각(instant) 기준이라
-	 * 서버의 JVM 타임존이 UTC든 KST든 결과가 같다. 벽시계 타입({@code LocalDateTime})으로
-	 * 비교하면 UTC 서버에서 9시간 어긋나 이미 지난 마감이 통과한다.
+	 * "지금부터 30분"은 Bean Validation으로 표현할 수 없어 주입받은 Clock으로 확인한다.
+	 * {@link OffsetDateTime} 비교는 절대 시각 기준이라 서버 타임존과 무관하게 같은 결과가 나온다.
 	 */
 	private void validateDeadline(OffsetDateTime deadline) {
 		OffsetDateTime earliest = OffsetDateTime.now(clock).plusMinutes(MIN_DEADLINE_MINUTES);

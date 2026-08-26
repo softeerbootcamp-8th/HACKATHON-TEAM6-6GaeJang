@@ -26,7 +26,7 @@ public class ChatRoom {
 	@Column(nullable = false)
 	private String name;
 
-	/** 배달팟 만날 장소 등. 배달팟 도메인과의 연결이 아직 없어(별도 작업 중) plain 컬럼으로 둔다. */
+	/** 배달팟의 만날 장소. 채팅은 팟을 모르는 단방향 구조라 팟 쪽에서 값만 밀어주는 plain 컬럼이다. */
 	@Column(length = 200)
 	private String location;
 

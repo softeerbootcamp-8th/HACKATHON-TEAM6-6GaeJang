@@ -55,7 +55,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 }
 
 /**
- * 참여 전 첫 진입 화면과 채팅방 상단 헤더가 함께 쓴다. 총대 닉네임과 '총대 N회' 배지, 가게 링크, 상세 설명, 참여 멤버 목록을 준다. 정산 계좌(account)는 참여자에게만 채워진다 — 참여 전 화면에도 열려 있는 API라 항상 실으면 참여하지 않은 사람에게 계좌번호가 노출된다. 나눔 완료된 팟도 조회된다(채팅방은 완료 후에도 남고 그 화면 상단이 이 API를 쓴다).
+ * 참여 전 첫 진입 화면과 채팅방 상단 헤더가 함께 쓴다. 총대 닉네임과 '총대 N회' 배지, 가게 링크, 상세 설명, 참여 멤버 목록을 준다. account(정산 계좌)는 참여자에게만 채워진다. 나눔 완료된 팟도 조회된다.
  * @summary 팟 상세 조회
  */
 export const getPot = (
@@ -165,7 +165,7 @@ export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = E
 }
 
 /**
- * 총대가 '내용 수정'으로 들어와 생성 폼과 같은 전체 값을 다시 보낸다. 아직 참여자가 없는(총대 혼자인) ACTIVE 팟만 수정할 수 있다 — 참여자가 한 명이라도 있으면 POT_NOT_EDITABLE. 이미 전달된 메뉴가 다른 가게 기준이 되고 참여자가 보고 들어온 계좌·장소가 조용히 바뀌기 때문이다. 총대가 아니면 POT_ACCESS_DENIED, 나눔이 끝난 팟이면 POT_NOT_ACTIVE. 수정 폼을 열어 둔 사이 누가 참여하면 낙관적 락에 걸려 CONFLICT로 실패한다. 가게명·만날 장소가 바뀌면 연결된 채팅방의 이름·장소도 함께 갱신된다. 본문 없이 성공만 응답한다 — 프론트는 저장 후 목록·상세를 새로 조회한다.
+ * 생성 폼과 같은 전체 값을 다시 보내는 전체 수정(부분 수정 없음). 총대 혼자인 ACTIVE 팟만 수정할 수 있다. 가게명·만날 장소가 바뀌면 채팅방도 함께 갱신된다. POT_NOT_EDITABLE(참여자 있음) / POT_ACCESS_DENIED / POT_NOT_ACTIVE / CONFLICT(수정 중 참여).
  * @summary 팟 수정
  */
 export const updatePot = (
@@ -249,7 +249,7 @@ export const useUpdatePot = <TError = ErrorType<unknown>, TContext = unknown>(
   return useMutation(getUpdatePotMutationOptions(options), queryClient)
 }
 /**
- * 홈 화면의 세 섹션을 한 번에 준다. hosted(내가 연 배달팟) / joined(참여중인 배달팟)은 반경도 마감시간도 보지 않는다 — 마감 후가 주문·입금·수령 구간이라 참여자에게는 계속 보여야 하고, 사라지는 조건은 나눔 완료뿐이다. all(전체 배달팟)은 내 인증 주소 기준 300m 이내에서 마감 전이고 정원이 남았으며 내가 속하지 않은 팟만 마감 임박순으로 준다. 나눔 완료(DONE)된 팟은 어디에도 나오지 않는다. 총대가 완료를 누르지 않아도 마감시간 + 5시간이 지나면 자동으로 완료 처리된다. keyword를 주면 세 섹션 모두 가게 이름으로 거른다. 좌표는 가입 시 인증한 주소에서 서버가 직접 읽으므로 요청에 넣지 않는다.
+ * 홈 화면의 세 섹션을 한 번에 준다. hosted/joined는 내가 속한 팟 전부로 반경도 마감시간도 보지 않고, all은 인증 주소 기준 300m 이내에서 마감 전·정원 여유·내가 속하지 않은 팟을 마감 임박순으로 준다. DONE 팟은 어디에도 나오지 않는다(마감 + 5시간이 지나면 자동 완료). keyword는 세 섹션 모두 가게 이름으로 거른다. 좌표는 서버가 인증 주소에서 직접 읽으므로 요청에 넣지 않는다.
  * @summary 홈 목록 조회
  */
 export const getPots = (
@@ -368,7 +368,7 @@ export function useGetPots<
 }
 
 /**
- * 총대가 가게 링크·만날 장소·정원·마감시간·정산 계좌를 넣어 배달팟을 만든다. 총대는 로그인한 회원으로 고정되며 요청 본문으로 지정할 수 없다. 생성 직후 상태는 ACTIVE이고 총대 본인이 첫 참여자로 잡힌다. 총대 혼자 있는 채팅방이 함께 만들어지고 그 id가 chatRoomId로 내려간다.
+ * 가게 링크·만날 장소·정원·마감시간·정산 계좌로 배달팟을 만든다. 총대는 로그인한 회원으로 고정되고 본인이 첫 참여자로 잡힌다. 총대 혼자 있는 채팅방이 함께 만들어져 chatRoomId로 내려간다.
  * @summary 팟 생성
  */
 export const createPot = (
@@ -451,7 +451,7 @@ export const useCreatePot = <TError = ErrorType<unknown>, TContext = unknown>(
   return useMutation(getCreatePotMutationOptions(options), queryClient)
 }
 /**
- * '총대에게 메뉴 전달하기' 버튼. 참여와 메뉴 전달을 한 번에 처리한다 — 참여 기록(메뉴·금액 포함) + 인원 증가가 한 트랜잭션이다. 프론트는 응답의 chatRoomId로 채팅 화면으로 이동한다. 중복 참여는 POT_ALREADY_JOINED, 정원이 찼으면 POT_FULL, 마감시간이 지났거나 나눔이 완료됐으면 POT_NOT_ACTIVE.
+ * '총대에게 메뉴 전달하기' 버튼. 참여 기록(메뉴·금액)과 인원 증가를 한 트랜잭션으로 처리하고, 프론트는 응답의 chatRoomId로 채팅 화면으로 이동한다. POT_ALREADY_JOINED / POT_FULL / POT_NOT_ACTIVE(마감·완료) / CONFLICT(동시 참여).
  * @summary 팟 참여 (메뉴 전달)
  */
 export const joinPot = (
@@ -535,7 +535,7 @@ export const useJoinPot = <TError = ErrorType<unknown>, TContext = unknown>(
   return useMutation(getJoinPotMutationOptions(options), queryClient)
 }
 /**
- * 배달을 받아 나누는 것까지 끝났을 때 총대가 호출한다('나눔 완료' 버튼). 상태가 DONE이 되어 참여자를 포함한 모두의 목록에서 사라진다. 마감시간 전이라도 누를 수 있다 — 정원이 차서 일찍 받아 나눈 경우가 정상 흐름이다. 총대가 누르지 않아도 마감시간 + 5시간이 지나면 목록 조회 시 자동으로 완료된다.
+ * 총대의 '나눔 완료' 버튼. DONE이 되어 모두의 목록에서 사라지고 채팅방만 남는다. 마감시간 전에도 누를 수 있고, 누르지 않아도 마감 + 5시간이면 목록 조회 시 자동 완료된다. POT_ACCESS_DENIED / POT_NOT_ACTIVE.
  * @summary 나눔 완료
  */
 export const completePot = (
@@ -611,7 +611,7 @@ export const useCompletePot = <TError = ErrorType<unknown>, TContext = unknown>(
   return useMutation(getCompletePotMutationOptions(options), queryClient)
 }
 /**
- * 정원과 마감시간만 늘린다. 참여자가 이미 있어도 쓸 수 있는 유일한 변경 경로다 — 자리와 시간이 늘어나는 방향이라 참여자에게 손해가 없기 때문이다. 줄이는 방향(정원 축소·마감 앞당기기)은 POT_RECRUITMENT_CANNOT_SHRINK로 막는다. 총대가 아니면 POT_ACCESS_DENIED, 나눔이 끝난 팟이면 POT_NOT_ACTIVE. 마감이 이미 지난 팟도 늘려서 살릴 수 있다(정원이 안 차 마감만 지난 경우가 주 용도). 값이 실제로 바뀌면 채팅방에 변경 공지가 남는다. 본문 없이 성공만 응답한다 — 프론트는 저장 후 목록·상세를 새로 조회한다.
+ * 정원과 마감시간을 늘리기만 한다. 참여자가 있어도 쓸 수 있는 유일한 변경 경로이고, 마감이 이미 지난 팟도 늘려 살릴 수 있다. 값이 바뀌면 채팅방에 변경 공지가 남는다. POT_RECRUITMENT_CANNOT_SHRINK(축소) / POT_ACCESS_DENIED / POT_NOT_ACTIVE.
  * @summary 모집 조건 확장
  */
 export const expandRecruitment = (
@@ -697,7 +697,7 @@ export const useExpandRecruitment = <TError = ErrorType<unknown>, TContext = unk
   return useMutation(getExpandRecruitmentMutationOptions(options), queryClient)
 }
 /**
- * 채팅방 헤더/배너가 potId 없이 roomId만 가진 경우를 위한 역조회다. 필드·계좌 노출 정책은 GET /api/pots/{potId}와 동일하다. 배달팟에서 만들지 않은 채팅방이거나 아직 연동 전인 방이면 404.
+ * 채팅방 헤더/배너가 potId 없이 roomId만 가진 경우를 위한 역조회. 필드·계좌 노출 정책은 GET /api/pots/{potId}와 동일하다. 배달팟에서 만들지 않은 채팅방이거나 아직 연동 전인 방이면 404.
  * @summary 채팅방 기준 팟 상세 조회
  */
 export const getPotByChatRoom = (
@@ -819,7 +819,7 @@ export function useGetPotByChatRoom<
 }
 
 /**
- * 채팅방의 '팟 나가기' 버튼. 참여 기록을 지우고 인원을 1 줄이며, 채팅방에 '~님이 채팅방을 나갔어요' 안내를 남긴다. 총대는 나눔 완료 전엔 나갈 수 없다(POT_HOST_CANNOT_LEAVE) — 완료 후에는 참여자와 동일하게 나갈 수 있다.
+ * 채팅방의 '팟 나가기' 버튼. 참여 기록을 지우고 인원을 1 줄이며 채팅방 멤버십도 제거한다. POT_NOT_JOINED / POT_HOST_CANNOT_LEAVE(총대는 나눔 완료 전엔 나갈 수 없다).
  * @summary 팟 나가기
  */
 export const leavePot = (

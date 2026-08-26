@@ -10,9 +10,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * 홈 목록의 카드 한 장. 화면에 실제로 그려지는 값만 담는다.
- *
- * <p>가게 링크·정산 계좌는 여기 없다. 목록은 참여 여부와 무관하게 열려 있으므로
- * 계좌 같은 값이 섞이면 안 되고, 링크는 상세 화면에서만 쓴다.
+ * 가게 링크·정산 계좌는 없다 — 목록은 참여 여부와 무관하게 열려 있다.
  */
 @Schema(description = "팟 목록 카드")
 public record PotSummaryResponse(
