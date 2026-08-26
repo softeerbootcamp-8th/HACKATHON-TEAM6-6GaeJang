@@ -38,6 +38,26 @@ function HomePage() {
   const [isComposingKeyword, setIsComposingKeyword] = useState(false)
   const [actionError, setActionError] = useState('')
   const [addressPickerOpen, setAddressPickerOpen] = useState(false)
+
+  // 주소 선택 화면은 URL이 안 바뀌어 브라우저 히스토리에 항목이 안 쌓인다. 그대로 두면
+  // 뒤로가기를 눌렀을 때 이 화면이 아니라 홈 이전 페이지로 튕긴다. pushState로 항목을
+  // 하나 쌓고 popstate에서 다시 닫아 맞춘다.
+  const openAddressPicker = () => {
+    window.history.pushState({ addressPickerOpen: true }, '')
+    setAddressPickerOpen(true)
+  }
+
+  useEffect(() => {
+    // AddressSetupStep이 지도 화면용으로 항목을 하나 더 쌓을 수 있으니, 무조건 닫지 않고
+    // popstate가 남긴 state를 보고 판단한다 — 지도→검색처럼 이 단계 안쪽으로 돌아온 경우까지
+    // 홈으로 튕겨버리면 안 된다.
+    const handlePopState = (event: PopStateEvent) => {
+      setAddressPickerOpen(event.state?.addressPickerOpen === true)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
   const queryClient = useQueryClient()
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
@@ -68,11 +88,14 @@ function HomePage() {
           queryClient.invalidateQueries({ queryKey: getMeQueryKey() }),
           queryClient.invalidateQueries({ queryKey: getGetPotsQueryKey() }),
         ])
-        setAddressPickerOpen(false)
+        // onComplete(handleAddressComplete)는 항상 AddressSetupStep의 지도 화면에서만 불린다 —
+        // 그 화면에 오려면 주소 선택 단계(1) + 지도 화면(1), 총 두 단계를 눌러 왔으므로
+        // 두 칸을 한 번에 되돌린다.
+        window.history.go(-2)
       },
       onError: (error) => {
         setActionError(error.message)
-        setAddressPickerOpen(false)
+        window.history.go(-2)
       },
     },
   })
@@ -110,7 +133,7 @@ function HomePage() {
   if (addressPickerOpen) {
     return (
       <AddressSetupStep
-        onBack={() => setAddressPickerOpen(false)}
+        onBack={() => window.history.back()}
         onComplete={handleAddressComplete}
         isSubmitting={saveAddress.isPending}
         confirmLabel="이 위치로 설정"
@@ -125,7 +148,7 @@ function HomePage() {
         <header className="bg-bg z-20 shrink-0 px-5 pb-2">
           <button
             type="button"
-            onClick={() => setAddressPickerOpen(true)}
+            onClick={openAddressPicker}
             aria-label="내 위치 변경"
             className="flex items-center gap-2 py-2 text-[15px] font-bold"
           >
