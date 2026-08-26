@@ -5,10 +5,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.hibernate.exception.ConstraintViolationException;
@@ -66,12 +64,6 @@ public class PotService {
 	 * TEXT 설명까지 전부 직렬화되는 것을 막는다. 페이징이 붙으면 페이지 크기로 대체된다.
 	 */
 	private static final Limit MAX_RESULTS = Limit.of(100);
-
-	/**
-	 * JPQL {@code in ()}은 빈 컬렉션에서 문법 오류가 난다. 존재할 수 없는 id를 넣어
-	 * "제외할 게 없음"을 표현한다. 이걸 안 하면 참여 이력이 없는 신규 회원의 홈이 500으로 죽는다.
-	 */
-	private static final Long NO_SUCH_POT_ID = -1L;
 
 	private final PotRepository potRepository;
 	private final PotMemberRepository potMemberRepository;
@@ -261,17 +253,11 @@ public class PotService {
 
 		String keyword = request.searchKeyword();
 
-		Set<Long> myPotIds = potMemberRepository.findByMemberId(memberId).stream()
-			.map(PotMember::getPotId)
-			.collect(Collectors.toSet());
-
-		List<Pot> myPots = myPotIds.isEmpty()
-			? List.of()
-			: potRepository.findMyLivePots(myPotIds, keyword);
+		List<Pot> myPots = potRepository.findMyLivePots(memberId, keyword);
 
 		List<Pot> hosted = myPots.stream().filter(pot -> pot.isHost(memberId)).toList();
 		List<Pot> joined = myPots.stream().filter(pot -> !pot.isHost(memberId)).toList();
-		List<Pot> others = findOthersNearby(me, myPotIds, keyword, now);
+		List<Pot> others = findOthersNearby(me, memberId, keyword, now);
 
 		// 세 섹션의 참여자를 한 번에 긁는다. 섹션별로 나눠 부르면 같은 쿼리가 세 번 나간다.
 		List<Pot> allPots = concatPots(hosted, joined, others);
@@ -515,13 +501,11 @@ public class PotService {
 	}
 
 	/** 전체 배달팟 섹션. 사각형으로 후보를 줄인 뒤 구면 거리로 모서리에 걸친 팟을 걸러낸다. */
-	private List<Pot> findOthersNearby(Member me, Set<Long> myPotIds, String keyword, OffsetDateTime now) {
+	private List<Pot> findOthersNearby(Member me, Long memberId, String keyword, OffsetDateTime now) {
 		Geo.Box box = Geo.boxAround(me.getLatitude(), me.getLongitude(), SEARCH_RADIUS_METERS);
 
-		Collection<Long> excluded = myPotIds.isEmpty() ? List.of(NO_SUCH_POT_ID) : myPotIds;
-
 		List<Pot> candidates = potRepository.findOpenPotsInBox(
-			now, excluded,
+			now, memberId,
 			box.minLatitude(), box.maxLatitude(),
 			box.minLongitude(), box.maxLongitude(),
 			keyword, MAX_RESULTS
