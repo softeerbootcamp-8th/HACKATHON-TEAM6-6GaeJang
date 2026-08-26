@@ -54,6 +54,18 @@ function ChatRoomListPage() {
     roomIds.filter((_, index) => potQueries[index]?.data?.data?.status === PotDetailResponseStatus.DONE),
   )
 
+  // 1순위: 활성화(진행 중) 방이 종료된 방보다 위. 2순위: 각 그룹 안에서 마지막 메시지가 최신인 방이 위
+  // (메시지가 아예 없는 방은 그 그룹 맨 아래).
+  const sortedRooms = [...(rooms.data?.data ?? [])].sort((a, b) => {
+    const aDone = a.roomId != null && doneRoomIds.has(a.roomId)
+    const bDone = b.roomId != null && doneRoomIds.has(b.roomId)
+    if (aDone !== bDone) return aDone ? 1 : -1
+
+    const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : -Infinity
+    const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : -Infinity
+    return bTime - aTime
+  })
+
   return (
     <main aria-label="채팅방 목록" className="app-shell">
       <div className="relative h-full">
@@ -88,7 +100,7 @@ function ChatRoomListPage() {
             <StateMessage>참여 중인 채팅방이 없어요</StateMessage>
           ) : (
             <ul className="mt-2 flex flex-col">
-              {rooms.data?.data?.map((room) => (
+              {sortedRooms.map((room) => (
                 <li key={room.roomId}>
                   <ChatRoomListItem room={room} isDone={room.roomId != null && doneRoomIds.has(room.roomId)} />
                 </li>
