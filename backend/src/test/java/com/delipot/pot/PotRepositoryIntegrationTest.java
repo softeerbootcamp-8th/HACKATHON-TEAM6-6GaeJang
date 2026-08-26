@@ -124,18 +124,17 @@ class PotRepositoryIntegrationTest {
 		soloComplete.complete();
 
 		Pot leftBeforeComplete = validPot().hostId(hostId).build();
-		leftBeforeComplete.increaseMemberCount();
-		leftBeforeComplete.recordMemberLeft(); // ACTIVE일 때 이탈 발생
-		leftBeforeComplete.decreaseMemberCount();
+		leftBeforeComplete.join();
+		leftBeforeComplete.leave(); // ACTIVE일 때 이탈이므로 hasMemberLeft 기록
 		leftBeforeComplete.complete();
 
 		Pot qualifying = validPot().hostId(hostId).build();
-		qualifying.increaseMemberCount();
+		qualifying.join();
 		qualifying.complete();
 
 		// 아직 ACTIVE라 완료 자체가 안 된 팟 — 카운트에서 당연히 빠져야 한다.
 		Pot stillActive = validPot().hostId(hostId).build();
-		stillActive.increaseMemberCount();
+		stillActive.join();
 
 		potRepository.saveAll(List.of(soloComplete, leftBeforeComplete, qualifying, stillActive));
 		potRepository.flush();
@@ -149,13 +148,12 @@ class PotRepositoryIntegrationTest {
 		OffsetDateTime deadline = OffsetDateTime.of(2026, 8, 25, 12, 0, 0, 0, ZoneOffset.ofHours(9));
 
 		Pot abandonedWithParticipant = validPot().hostId(101L).deadline(deadline).build();
-		abandonedWithParticipant.increaseMemberCount();
+		abandonedWithParticipant.join();
 		Long withParticipantId = potRepository.saveAndFlush(abandonedWithParticipant).getId();
 
 		Pot abandonedAfterParticipantLeft = validPot().hostId(103L).deadline(deadline).build();
-		abandonedAfterParticipantLeft.increaseMemberCount();
-		abandonedAfterParticipantLeft.recordMemberLeft();
-		abandonedAfterParticipantLeft.decreaseMemberCount();
+		abandonedAfterParticipantLeft.join();
+		abandonedAfterParticipantLeft.leave();
 		Long afterParticipantLeftId = potRepository.saveAndFlush(abandonedAfterParticipantLeft).getId();
 
 		Long soloId = potRepository.saveAndFlush(validPot().hostId(102L).deadline(deadline).build()).getId();

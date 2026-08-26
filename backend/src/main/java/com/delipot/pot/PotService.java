@@ -312,7 +312,7 @@ public class PotService {
 
 		potMemberRepository.save(
 			PotMember.join(potId, memberId, request.menuContent(), request.menuPrice(), now));
-		pot.increaseMemberCount();
+		pot.join();
 
 		String nickname = memberService.getById(memberId).getNickname();
 		chatService.addMember(pot.getChatRoomId(), memberId);
@@ -382,8 +382,7 @@ public class PotService {
 		}
 
 		String nickname = memberService.getById(memberId).getNickname();
-		pot.recordMemberLeft();
-		pot.decreaseMemberCount();
+		pot.leave();
 		chatService.removeMember(pot.getChatRoomId(), memberId);
 		chatService.postSystemNoticeMessage(pot.getChatRoomId(), nickname + "님이 채팅방을 나갔어요");
 	}
