@@ -203,16 +203,6 @@ function PotOverview({ detail, onJoin }: { detail: PotDetailResponse; onJoin: ()
           </p>
         </section>
 
-        {detail.account && (
-          <section className="bg-primary-soft mt-7 rounded-xl p-4">
-            <h2 className="text-sm font-bold">정산 계좌</h2>
-            <p className="mt-2 text-sm">
-              {detail.account.bankName} {detail.account.accountNumber} ·{' '}
-              {detail.account.accountHolder}
-            </p>
-          </section>
-        )}
-
         <section className="mt-8">
           <h2 className="text-sm font-bold">현재 참여 멤버</h2>
           <ul className="mt-4 flex flex-wrap gap-7">
@@ -284,7 +274,7 @@ function CopyAddressButton({ address }: { address: string }) {
   }
 
   return (
-    <div className="shrink-0">
+    <div className="-my-1.5 shrink-0 self-start">
       <button
         type="button"
         onClick={() => void copyAddress()}
