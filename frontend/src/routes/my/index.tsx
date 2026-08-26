@@ -7,6 +7,7 @@ import { useLogout, useMe, useWithdraw } from '@/api/generated/auth/auth'
 import { requireAuth } from '@/lib/authGuard'
 import { clearSessionQueries } from '@/lib/sessionCache'
 
+import { AppLogoHeader } from '../-components/AppLogoHeader'
 import { MobileBottomNav } from '../-components/MobileBottomNav'
 import { ConfirmDialog } from './-components/ConfirmDialog'
 
@@ -50,8 +51,11 @@ function MyPage() {
     <main aria-label="마이페이지" className="app-shell">
       <div className="relative h-full">
         <div className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32">
-          <header className="flex h-14 items-center">
-            <h1 className="text-xl font-bold">마이페이지</h1>
+          <header>
+            <AppLogoHeader />
+            <div className="flex h-14 items-center">
+              <h1 className="text-xl font-bold">마이페이지</h1>
+            </div>
           </header>
 
           {me.isPending ? (
