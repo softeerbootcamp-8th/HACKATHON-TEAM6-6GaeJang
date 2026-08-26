@@ -62,7 +62,7 @@ function ChatRoomListPage() {
           className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32"
         >
           <header className="bg-bg sticky top-0 z-20 -mx-5 px-5 pb-2">
-            <AppLogoHeader />
+            <AppLogoHeader compact />
             <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
             <div className="flex h-14 items-center">
               <h1 className="text-lg font-bold">채팅</h1>
