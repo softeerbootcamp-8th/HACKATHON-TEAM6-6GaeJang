@@ -31,6 +31,7 @@ import com.delipot.member.Member;
 import com.delipot.member.MemberService;
 import com.delipot.pot.dto.PotCreateRequest;
 import com.delipot.pot.dto.PotCreateResponse;
+import com.delipot.pot.dto.PotRecruitmentUpdateRequest;
 import com.delipot.pot.dto.PotUpdateRequest;
 
 @ExtendWith(MockitoExtension.class)
@@ -700,6 +701,118 @@ class PotServiceTest {
 
 		assertThat(pot.getDeadline()).isEqualTo(CURRENT.plusHours(5));
 		assertThat(pot.isDeadlinePassed(CURRENT.plusHours(2))).isFalse();
+	}
+
+	// ---------- 모집 조건 확장 ----------
+
+	/** 기본 팟은 정원 4, 마감 CURRENT+1h 이다. */
+	private PotRecruitmentUpdateRequest expand(int capacity, OffsetDateTime deadline) {
+		return new PotRecruitmentUpdateRequest(capacity, deadline);
+	}
+
+	@Test
+	@DisplayName("참여자가 있어도 정원과 마감을 늘릴 수 있다")
+	void expandWorksWithParticipants() {
+		Pot pot = pot(PotStatus.ACTIVE, 3);
+		givenPotExists(pot);
+
+		potService().expandRecruitment(HOST_ID, POT_ID, expand(4, CURRENT.plusHours(4)));
+
+		assertThat(pot.getCapacity()).isEqualTo(4);
+		assertThat(pot.getDeadline()).isEqualTo(CURRENT.plusHours(4));
+		assertThat(pot.getCurrentMemberCount()).isEqualTo(3);
+	}
+
+	/** 참여자는 이 두 값을 보고 들어왔다. 조용히 바뀌면 안 된다. */
+	@Test
+	@DisplayName("값이 바뀌면 채팅방에 변경 공지가 남는다")
+	void expandPostsChatNotice() {
+		Pot pot = pot(PotStatus.ACTIVE, 3);
+		pot.expandRecruitment(2, pot.getDeadline());
+		givenPotExists(pot);
+
+		potService().expandRecruitment(HOST_ID, POT_ID, expand(4, CURRENT.plusHours(4)));
+
+		verify(chatService).postSystemNoticeMessage(
+			CHAT_ROOM_ID, "배달팟 인원이 4명으로, 마감 시간이 8월 25일 22:00으로 변경되었어요");
+	}
+
+	/** 같은 값으로 저장했는데 공지가 나가면 방이 시끄러워진다. */
+	@Test
+	@DisplayName("값이 그대로면 공지하지 않는다")
+	void expandWithoutChangeIsSilent() {
+		Pot pot = pot(PotStatus.ACTIVE, 3);
+		givenPotExists(pot);
+
+		potService().expandRecruitment(HOST_ID, POT_ID, expand(4, CURRENT.plusHours(1)));
+
+		verify(chatService, never()).postSystemNoticeMessage(any(), any());
+	}
+
+	@Test
+	@DisplayName("정원을 줄이면 거부한다 — 이미 들어온 사람이 정원 밖으로 밀린다")
+	void expandCannotShrinkCapacity() {
+		Pot pot = pot(PotStatus.ACTIVE, 3);
+		givenPotExists(pot);
+
+		assertThatThrownBy(() -> potService().expandRecruitment(HOST_ID, POT_ID, expand(3, CURRENT.plusHours(4))))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_RECRUITMENT_CANNOT_SHRINK);
+
+		assertThat(pot.getCapacity()).isEqualTo(4);
+		assertThat(pot.getDeadline()).isEqualTo(CURRENT.plusHours(1));
+	}
+
+	@Test
+	@DisplayName("마감을 앞당기면 거부한다 — 참여자가 기대한 시간표가 짧아진다")
+	void expandCannotShrinkDeadline() {
+		Pot pot = pot(PotStatus.ACTIVE, 3);
+		givenPotExists(pot);
+
+		assertThatThrownBy(() ->
+			potService().expandRecruitment(HOST_ID, POT_ID, expand(4, CURRENT.plusMinutes(45))))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_RECRUITMENT_CANNOT_SHRINK);
+
+		assertThat(pot.getDeadline()).isEqualTo(CURRENT.plusHours(1));
+		verify(chatService, never()).postSystemNoticeMessage(any(), any());
+	}
+
+	/** 정원이 안 차 마감만 지난 팟을 살리는 것이 이 기능의 주 용도다. */
+	@Test
+	@DisplayName("마감이 이미 지난 팟도 마감을 늘려 살릴 수 있다")
+	void expandRevivesExpiredPot() {
+		Pot pot = pot(PotStatus.ACTIVE, 2);
+		givenPotExists(pot);
+		PotService afterDeadline = potService(Clock.fixed(NOW.plusSeconds(7200), SEOUL));
+
+		afterDeadline.expandRecruitment(HOST_ID, POT_ID, expand(4, CURRENT.plusHours(5)));
+
+		assertThat(pot.isDeadlinePassed(CURRENT.plusHours(3))).isFalse();
+	}
+
+	@Test
+	@DisplayName("총대가 아니면 POT_ACCESS_DENIED")
+	void expandByNonHostIsRejected() {
+		Pot pot = pot(PotStatus.ACTIVE, 3);
+		givenPotExists(pot);
+
+		assertThatThrownBy(() -> potService().expandRecruitment(OTHER_ID, POT_ID, expand(4, CURRENT.plusHours(4))))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_ACCESS_DENIED);
+
+		assertThat(pot.getDeadline()).isEqualTo(CURRENT.plusHours(1));
+	}
+
+	@Test
+	@DisplayName("나눔 완료된 팟은 되살리지 않는다")
+	void expandDonePotIsRejected() {
+		givenPotExists(pot(PotStatus.DONE, 3));
+
+		assertThatThrownBy(() -> potService().expandRecruitment(HOST_ID, POT_ID, expand(4, CURRENT.plusHours(4))))
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_NOT_ACTIVE);
 	}
 
 	// ---------- 모집 마감 / 완료 ----------

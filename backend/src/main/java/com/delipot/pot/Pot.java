@@ -308,6 +308,26 @@ public class Pot {
 	}
 
 	/**
+	 * 모집 조건 확장. 정원과 마감시간을 늘리는 것만 허용한다.
+	 *
+	 * <p>참여자가 이미 있어도 열려 있는 유일한 변경 경로다. 늘리는 방향만 여는 이유는 이 방향이
+	 * 참여자에게 손해가 없어서다 — 자리가 더 생기고 시간이 더 생긴다. 반대로 정원을 줄이면 이미
+	 * 들어온 사람이 정원 밖으로 밀리고, 마감을 당기면 참여자가 기대한 시간표가 짧아진다.
+	 *
+	 * <p>같은 값으로 다시 호출해도 문제없다(멱등). 화면이 두 값을 함께 보내오므로 한쪽만 바꾸는
+	 * 경우 다른 쪽은 현재 값 그대로 들어온다. 검증·거부는 서비스가 한다.
+	 */
+	public void expandRecruitment(int capacity, OffsetDateTime deadline) {
+		this.capacity = capacity;
+		this.deadline = deadline;
+	}
+
+	/** 확장 방향인지. 정원·마감 둘 다 현재 값 이상이어야 한다. */
+	public boolean isExpansionOf(int newCapacity, OffsetDateTime newDeadline) {
+		return newCapacity >= this.capacity && !newDeadline.isBefore(this.deadline);
+	}
+
+	/**
 	 * 참여자 1명 증가.
 	 *
 	 * <p>{@code currentMemberCount}를 {@code PotMember} 행 수로 매번 세지 않고 컬럼으로 들고 있는 이유는

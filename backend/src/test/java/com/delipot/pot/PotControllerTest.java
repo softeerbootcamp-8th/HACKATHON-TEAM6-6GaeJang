@@ -150,7 +150,7 @@ class PotControllerTest {
 	}
 
 	@Test
-	@DisplayName("모집 인원이 1명이면 400 — 혼자 시키는 팟은 의미가 없다")
+	@DisplayName("배달팟 인원이 1명이면 400 — 혼자 시키는 팟은 의미가 없다")
 	void rejectsCapacityOne() throws Exception {
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -162,7 +162,7 @@ class PotControllerTest {
 	}
 
 	@Test
-	@DisplayName("모집 인원이 5명이면 400 — 배달팟 정원은 최대 4명이다")
+	@DisplayName("배달팟 인원이 5명이면 400 — 배달팟 정원은 최대 4명이다")
 	void rejectsCapacityFive() throws Exception {
 		mockMvc.perform(post("/api/pots")
 				.contentType(MediaType.APPLICATION_JSON)

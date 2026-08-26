@@ -35,6 +35,8 @@ public enum ErrorCode {
 	POT_HOST_CANNOT_LEAVE(HttpStatus.BAD_REQUEST, "총대는 나눔 완료 전에는 팟을 나갈 수 없습니다."),
 	// 참여자가 한 명이라도 들어오면 내용을 못 바꾼다 — 이미 전달된 메뉴·계좌·장소가 통째로 무의미해지기 때문이다.
 	POT_NOT_EDITABLE(HttpStatus.CONFLICT, "이미 참여자가 있어 수정할 수 없습니다."),
+	// 모집 조건은 늘리는 방향만 열려 있다. 줄이면 이미 들어온 참여자의 자리·시간표가 깎인다.
+	POT_RECRUITMENT_CANNOT_SHRINK(HttpStatus.CONFLICT, "배달팟 인원과 마감 시간은 줄일 수 없습니다."),
 	// 회원 — 총대인 진행 중인 팟이 있으면 탈퇴를 막는다. 참여자로만 속한 팟은 자동으로 나가기 처리된다.
 	MEMBER_HAS_ACTIVE_POT(HttpStatus.CONFLICT, "진행 중인 배달팟이 있어 탈퇴할 수 없어요."),
 

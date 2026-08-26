@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -23,6 +24,7 @@ import com.delipot.pot.dto.PotJoinRequest;
 import com.delipot.pot.dto.PotJoinResponse;
 import com.delipot.pot.dto.PotListRequest;
 import com.delipot.pot.dto.PotListResponse;
+import com.delipot.pot.dto.PotRecruitmentUpdateRequest;
 import com.delipot.pot.dto.PotUpdateRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -74,6 +76,27 @@ public class PotController {
 		@Valid @RequestBody PotUpdateRequest request
 	) {
 		potService.update(memberId, potId, request);
+		return ApiResponse.ok();
+	}
+
+	@Operation(
+		summary = "모집 조건 확장",
+		description = "정원과 마감시간만 늘린다. 참여자가 이미 있어도 쓸 수 있는 유일한 변경 경로다 — "
+			+ "자리와 시간이 늘어나는 방향이라 참여자에게 손해가 없기 때문이다. "
+			+ "줄이는 방향(정원 축소·마감 앞당기기)은 POT_RECRUITMENT_CANNOT_SHRINK로 막는다. "
+			+ "총대가 아니면 POT_ACCESS_DENIED, 나눔이 끝난 팟이면 POT_NOT_ACTIVE. "
+			+ "마감이 이미 지난 팟도 늘려서 살릴 수 있다(정원이 안 차 마감만 지난 경우가 주 용도). "
+			+ "값이 실제로 바뀌면 채팅방에 변경 공지가 남는다. "
+			+ "본문 없이 성공만 응답한다 — 프론트는 저장 후 목록·상세를 새로 조회한다."
+	)
+	@RequireAuthenticate
+	@PatchMapping("/{potId}/recruitment")
+	public ApiResponse<Void> expandRecruitment(
+		@LoginMember Long memberId,
+		@PathVariable Long potId,
+		@Valid @RequestBody PotRecruitmentUpdateRequest request
+	) {
+		potService.expandRecruitment(memberId, potId, request);
 		return ApiResponse.ok();
 	}
 
