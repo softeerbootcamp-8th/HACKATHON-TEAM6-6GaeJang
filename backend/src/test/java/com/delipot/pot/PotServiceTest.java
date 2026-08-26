@@ -9,18 +9,21 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.delipot.chat.ChatService;
 import com.delipot.chat.dto.ChatRoomCreateRequest;
@@ -405,6 +408,48 @@ class PotServiceTest {
 			.isEqualTo(ErrorCode.POT_ALREADY_JOINED);
 
 		assertThat(pot.getCurrentMemberCount()).isEqualTo(2);
+	}
+
+	/**
+	 * 같은 사람이 참여 버튼을 두 번 빠르게 누르면 두 요청이 모두 {@code exists = false}를 보고
+	 * 통과한다. 늦게 온 쪽은 INSERT에서 unique 제약에 걸리는데, 번역하지 않으면 사용자에게 500이 나간다.
+	 */
+	@Test
+	@DisplayName("동시 참여로 unique 제약에 걸린 쪽도 POT_ALREADY_JOINED로 응답한다 — 500이 아니다")
+	void concurrentDuplicateJoinBecomesAlreadyJoined() {
+		Pot pot = pot(PotStatus.ACTIVE, 2);
+		givenPotExists(pot);
+		given(potMemberRepository.existsByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(false);
+		given(potMemberRepository.save(any())).willThrow(duplicateMembershipViolation());
+
+		assertThatThrownBy(() -> potService().join(OTHER_ID, POT_ID, menuRequest()))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_ALREADY_JOINED);
+	}
+
+	/** NOT NULL 위반 같은 코드 버그를 409로 포장하면 조용히 묻힌다 — 500으로 남아야 로그에서 발견된다. */
+	@Test
+	@DisplayName("중복 참여가 아닌 무결성 위반은 번역하지 않고 그대로 올려보낸다")
+	void otherIntegrityViolationIsNotTranslated() {
+		Pot pot = pot(PotStatus.ACTIVE, 2);
+		givenPotExists(pot);
+		given(potMemberRepository.existsByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(false);
+		given(potMemberRepository.save(any())).willThrow(constraintViolation("uk_something_else"));
+
+		assertThatThrownBy(() -> potService().join(OTHER_ID, POT_ID, menuRequest()))
+			.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	private DataIntegrityViolationException duplicateMembershipViolation() {
+		// 실제 DB는 제약 이름에 장식을 붙여 돌려준다 — H2: "PUBLIC.UK_...", MySQL: "pot_members.uk_...".
+		return constraintViolation("PUBLIC.UK_POT_MEMBERS_POT_MEMBER INDEX PUBLIC.UK_POT_MEMBERS_POT_MEMBER_INDEX_8");
+	}
+
+	private DataIntegrityViolationException constraintViolation(String constraintName) {
+		return new DataIntegrityViolationException(
+			"could not execute statement",
+			new ConstraintViolationException("중복 키", new SQLException("duplicate"), constraintName));
 	}
 
 	@Test
