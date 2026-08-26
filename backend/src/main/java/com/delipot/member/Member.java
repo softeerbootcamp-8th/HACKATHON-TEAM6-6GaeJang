@@ -105,8 +105,10 @@ public class Member {
 		this.longitude = longitude;
 	}
 
-	/** soft delete. 세션 정리는 호출부(AuthService)가 담당한다. */
+	/** soft delete. phoneNumber/nickname을 id 기반 값으로 익명화해 unique 제약을 유지한 채 재가입을 허용한다. */
 	public void withdraw() {
 		this.withdrawnAt = LocalDateTime.now();
+		this.phoneNumber = "DEL" + id;
+		this.nickname = "탈퇴" + id;
 	}
 }
