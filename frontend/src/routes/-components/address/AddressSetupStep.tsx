@@ -1,12 +1,39 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { ChevronLeft, Crosshair, Search, X, MapPin } from 'lucide-react'
 
 import {
   searchAddressOrPlaces,
   type AddressSearchResult,
 } from '@/lib/kakaoMap'
-import { LocationPermissionDialog } from './LocationPermissionDialog'
 import { KakaoMapPicker, type SelectedLocation } from './KakaoMapPicker'
+
+/** 검색 결과 텍스트에서 검색어와 일치하는 부분(대소문자 무관, 전체 등장)을 하이라이트한다. */
+function highlightMatch(text: string, query: string) {
+  const trimmed = query.trim()
+  if (!trimmed) return text
+
+  const lowerText = text.toLowerCase()
+  const lowerQuery = trimmed.toLowerCase()
+
+  const parts: ReactNode[] = []
+  let lastIndex = 0
+  let index = lowerText.indexOf(lowerQuery)
+  if (index === -1) return text
+
+  while (index !== -1) {
+    if (index > lastIndex) parts.push(text.slice(lastIndex, index))
+    parts.push(
+      <mark key={index} className="bg-transparent font-bold text-primary">
+        {text.slice(index, index + trimmed.length)}
+      </mark>,
+    )
+    lastIndex = index + trimmed.length
+    index = lowerText.indexOf(lowerQuery, lastIndex)
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+
+  return parts
+}
 
 type AddressSetupStepProps = {
   onBack: () => void
@@ -33,12 +60,6 @@ export function AddressSetupStep({
     }
     return null
   })
-  const [showPermissionDialog, setShowPermissionDialog] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('delipot_loc_pref') !== 'allowed'
-    }
-    return false
-  })
   const [showMapPicker, setShowMapPicker] = useState(false)
   const [mapInitialCoords, setMapInitialCoords] = useState<{ latitude: number; longitude: number } | null>(null)
   const [mapInitialAddress, setMapInitialAddress] = useState<string | undefined>(undefined)
@@ -47,9 +68,29 @@ export function AddressSetupStep({
   const [isSearching, setIsSearching] = useState(false)
 
   const debounceTimerRef = useRef<number | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Geolocation 요청
-  const requestLocation = useCallback((persist: boolean) => {
+  // 지도 화면도 URL이 안 바뀌어 브라우저 히스토리에 항목이 안 쌓인다. 그대로 두면 지도 화면에서
+  // 뒤로가기를 눌렀을 때 검색 화면이 아니라 이 컴포넌트를 띄운 화면(회원가입 등)으로 튕긴다.
+  // pushState로 항목을 하나 쌓고, popstate에서 history.state를 보고 지도/검색 중 어느 쪽을
+  // 보여줄지 판단한다 — 이 컴포넌트를 연 부모도 자기 몫의 항목을 쌓아두므로, 무조건 닫는 대신
+  // "이 항목에 지도 마커가 있는가"만 확인해야 부모 단계까지 같이 닫히는 걸 막을 수 있다.
+  const openMapPicker = () => {
+    window.history.pushState({ addressMapPicker: true }, '')
+    setShowMapPicker(true)
+  }
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      setShowMapPicker(event.state?.addressMapPicker === true)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  // Geolocation 요청. 브라우저/OS 네이티브 권한 팝업이 여기서 뜬다 — 앱 자체 확인 모달은
+  // 두지 않는다(중복 팝업 방지).
+  const requestLocation = useCallback((onGranted?: (coords: { latitude: number; longitude: number }) => void) => {
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -59,9 +100,8 @@ export function AddressSetupStep({
           }
           setUserCoords(coords)
           setHasLocationPermission(true)
-          if (persist) {
-            localStorage.setItem('delipot_loc_pref', 'allowed')
-          }
+          localStorage.setItem('delipot_loc_pref', 'allowed')
+          onGranted?.(coords)
         },
         () => {
           setHasLocationPermission(false)
@@ -73,7 +113,8 @@ export function AddressSetupStep({
     }
   }, [])
 
-  // 초기 허용 상태인 경우 비동기 위치 로드
+  // 이전에 허용한 적이 있으면(로컬스토리지 기록) 조용히 위치를 다시 가져온다.
+  // 브라우저가 이미 이 출처에 권한을 기억하고 있어 네이티브 팝업도 다시 뜨지 않는다.
   useEffect(() => {
     if (hasLocationPermission === true && !userCoords && typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -119,6 +160,7 @@ export function AddressSetupStep({
   // 엔터 또는 검색 버튼 클릭 시 (State I 3, I 4)
   const handleSearchSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
+    searchInputRef.current?.blur()
     const trimmed = query.trim()
     if (!trimmed) return
 
@@ -136,10 +178,12 @@ export function AddressSetupStep({
   const handleOpenCurrentLocationMap = () => {
     if (hasLocationPermission && userCoords) {
       setMapInitialCoords(userCoords)
-      setShowMapPicker(true)
+      openMapPicker()
     } else {
-      // 권한이 없으면 권한 팝업 다시 띄움
-      setShowPermissionDialog(true)
+      requestLocation((coords) => {
+        setMapInitialCoords(coords)
+        openMapPicker()
+      })
     }
   }
 
@@ -147,7 +191,7 @@ export function AddressSetupStep({
   const handleSelectSearchResult = (item: AddressSearchResult) => {
     setMapInitialCoords({ latitude: item.latitude, longitude: item.longitude })
     setMapInitialAddress(item.roadAddress || item.jibunAddress)
-    setShowMapPicker(true)
+    openMapPicker()
   }
 
   if (showMapPicker) {
@@ -155,7 +199,7 @@ export function AddressSetupStep({
       <KakaoMapPicker
         initialCoords={mapInitialCoords}
         initialAddress={mapInitialAddress}
-        onBack={() => setShowMapPicker(false)}
+        onBack={() => window.history.back()}
         onConfirm={onComplete}
         isSubmitting={isSubmitting}
         confirmLabel={confirmLabel}
@@ -182,10 +226,11 @@ export function AddressSetupStep({
         <div className="size-8" />
       </header>
 
-      <div className="flex flex-1 flex-col px-6 py-6">
-        {/* 검색바 (State I, J, K) */}
-        <form onSubmit={handleSearchSubmit} className="relative mb-4 flex items-center">
+      {/* 검색바 (State I, J, K) */}
+      <div className="border-b border-border px-6 pt-6 pb-4">
+        <form onSubmit={handleSearchSubmit} className="relative flex items-center">
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="아파트명, 도로명 또는 지번"
             value={query}
@@ -217,13 +262,15 @@ export function AddressSetupStep({
             </button>
           </div>
         </form>
+      </div>
 
+      <div className="flex flex-1 flex-col px-6 pt-4 pb-6">
         {/* 현재 위치로 주소 찾기 버튼 (State J) */}
         {!submittedQuery && !query && (
           <button
             type="button"
             onClick={handleOpenCurrentLocationMap}
-            className="hover:border-primary/50 mb-6 flex h-13 w-full items-center justify-center gap-2 rounded-xl border border-border bg-bg text-sm font-semibold text-fg transition-colors"
+            className="mb-6 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-bg text-sm font-semibold text-fg transition-colors"
           >
             <Crosshair className="text-primary size-4" />
             현재 위치로 주소 찾기
@@ -273,7 +320,7 @@ export function AddressSetupStep({
         {submittedQuery && (
           <div className="mb-4">
             <h3 className="text-sm font-semibold text-fg">
-              &lsquo;{submittedQuery}&rsquo;에 대한 검색 결과입니다.
+              <span className="text-primary font-bold">&lsquo;{submittedQuery}&rsquo;</span>에 대한 검색 결과입니다.
             </h3>
           </div>
         )}
@@ -292,7 +339,7 @@ export function AddressSetupStep({
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-fg">
-                          {item.placeName}
+                          {highlightMatch(item.placeName, query)}
                         </span>
                         {item.distanceMeters !== undefined && (
                           <span className="text-muted-fg text-xs">
@@ -303,11 +350,11 @@ export function AddressSetupStep({
                         )}
                       </div>
                       <span className="text-muted-fg text-xs">
-                        {item.roadAddress}
+                        {highlightMatch(item.roadAddress, query)}
                       </span>
                       {item.jibunAddress && item.jibunAddress !== item.roadAddress && (
                         <span className="text-muted-fg/70 text-[11px]">
-                          [지번] {item.jibunAddress}
+                          [지번] {highlightMatch(item.jibunAddress, query)}
                         </span>
                       )}
                     </button>
@@ -331,19 +378,6 @@ export function AddressSetupStep({
           </div>
         )}
       </div>
-
-      {/* 위치 권한 요청 모달 */}
-      <LocationPermissionDialog
-        isOpen={showPermissionDialog}
-        onAllow={(persist) => {
-          setShowPermissionDialog(false)
-          requestLocation(persist)
-        }}
-        onDeny={() => {
-          setShowPermissionDialog(false)
-          setHasLocationPermission(false)
-        }}
-      />
     </div>
   )
 }
