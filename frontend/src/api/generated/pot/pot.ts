@@ -30,6 +30,8 @@ import type {
   GetPotsParams,
   PotCreateRequest,
   PotJoinRequest,
+  PotRecruitmentUpdateRequest,
+  PotUpdateRequest,
 } from '../model'
 
 import { customInstance } from '../../../lib/axios'
@@ -52,6 +54,200 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result
 }
 
+/**
+ * 참여 전 첫 진입 화면과 채팅방 상단 헤더가 함께 쓴다. 총대 닉네임과 '총대 N회' 배지, 가게 링크, 상세 설명, 참여 멤버 목록을 준다. 정산 계좌(account)는 참여자에게만 채워진다 — 참여 전 화면에도 열려 있는 API라 항상 실으면 참여하지 않은 사람에게 계좌번호가 노출된다. 나눔 완료된 팟도 조회된다(채팅방은 완료 후에도 남고 그 화면 상단이 이 API를 쓴다).
+ * @summary 팟 상세 조회
+ */
+export const getPot = (
+  potId: number,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ApiResponsePotDetailResponse>(
+    { url: `/api/pots/${potId}`, method: 'GET', signal },
+    options,
+  )
+}
+
+export const getGetPotQueryKey = (potId: number) => {
+  return [`/api/pots/${potId}`] as const
+}
+
+export const getGetPotQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPot>>,
+  TError = ErrorType<unknown>,
+>(
+  potId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getGetPotQueryKey(potId)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPot>>> = ({ signal }) =>
+    getPot(potId, requestOptions, signal)
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: potId !== null && potId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+}
+
+export type GetPotQueryResult = NonNullable<Awaited<ReturnType<typeof getPot>>>
+export type GetPotQueryError = ErrorType<unknown>
+
+export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = ErrorType<unknown>>(
+  potId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPot>>,
+          TError,
+          Awaited<ReturnType<typeof getPot>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = ErrorType<unknown>>(
+  potId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPot>>,
+          TError,
+          Awaited<ReturnType<typeof getPot>>
+        >,
+        'initialData'
+      >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = ErrorType<unknown>>(
+  potId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary 팟 상세 조회
+ */
+
+export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = ErrorType<unknown>>(
+  potId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>>
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPotQueryOptions(potId, options)
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>
+  }
+
+  return withQueryKey(query, queryOptions.queryKey)
+}
+
+/**
+ * 총대가 '내용 수정'으로 들어와 생성 폼과 같은 전체 값을 다시 보낸다. 아직 참여자가 없는(총대 혼자인) ACTIVE 팟만 수정할 수 있다 — 참여자가 한 명이라도 있으면 POT_NOT_EDITABLE. 이미 전달된 메뉴가 다른 가게 기준이 되고 참여자가 보고 들어온 계좌·장소가 조용히 바뀌기 때문이다. 총대가 아니면 POT_ACCESS_DENIED, 나눔이 끝난 팟이면 POT_NOT_ACTIVE. 수정 폼을 열어 둔 사이 누가 참여하면 낙관적 락에 걸려 CONFLICT로 실패한다. 가게명·만날 장소가 바뀌면 연결된 채팅방의 이름·장소도 함께 갱신된다. 본문 없이 성공만 응답한다 — 프론트는 저장 후 목록·상세를 새로 조회한다.
+ * @summary 팟 수정
+ */
+export const updatePot = (
+  potId: number,
+  potUpdateRequest: BodyType<PotUpdateRequest>,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ApiResponseVoid>(
+    {
+      url: `/api/pots/${potId}`,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      data: potUpdateRequest,
+      signal,
+    },
+    options,
+  )
+}
+
+export const getUpdatePotMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePot>>,
+    TError,
+    { potId: number; data: BodyType<PotUpdateRequest> },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePot>>,
+  TError,
+  { potId: number; data: BodyType<PotUpdateRequest> },
+  TContext
+> => {
+  const mutationKey = ['updatePot']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePot>>,
+    { potId: number; data: BodyType<PotUpdateRequest> }
+  > = (props) => {
+    const { potId, data } = props ?? {}
+
+    return updatePot(potId, data, requestOptions)
+  }
+
+  return { mutationFn, ...mutationOptions }
+}
+
+export type UpdatePotMutationResult = NonNullable<Awaited<ReturnType<typeof updatePot>>>
+export type UpdatePotMutationBody = BodyType<PotUpdateRequest>
+export type UpdatePotMutationError = ErrorType<unknown>
+
+/**
+ * @summary 팟 수정
+ */
+export const useUpdatePot = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updatePot>>,
+      TError,
+      { potId: number; data: BodyType<PotUpdateRequest> },
+      TContext
+    >
+    request?: SecondParameter<typeof customInstance>
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof updatePot>>,
+  TError,
+  { potId: number; data: BodyType<PotUpdateRequest> },
+  TContext
+> => {
+  return useMutation(getUpdatePotMutationOptions(options), queryClient)
+}
 /**
  * 홈 화면의 세 섹션을 한 번에 준다. hosted(내가 연 배달팟) / joined(참여중인 배달팟)은 반경도 마감시간도 보지 않는다 — 마감 후가 주문·입금·수령 구간이라 참여자에게는 계속 보여야 하고, 사라지는 조건은 나눔 완료뿐이다. all(전체 배달팟)은 내 인증 주소 기준 300m 이내에서 마감 전이고 정원이 남았으며 내가 속하지 않은 팟만 마감 임박순으로 준다. 나눔 완료(DONE)된 팟은 어디에도 나오지 않는다. 총대가 완료를 누르지 않아도 마감시간 + 5시간이 지나면 자동으로 완료 처리된다. keyword를 주면 세 섹션 모두 가게 이름으로 거른다. 좌표는 가입 시 인증한 주소에서 서버가 직접 읽으므로 요청에 넣지 않는다.
  * @summary 홈 목록 조회
@@ -415,115 +611,91 @@ export const useCompletePot = <TError = ErrorType<unknown>, TContext = unknown>(
   return useMutation(getCompletePotMutationOptions(options), queryClient)
 }
 /**
- * 참여 전 첫 진입 화면과 채팅방 상단 헤더가 함께 쓴다. 총대 닉네임과 '총대 N회' 배지, 가게 링크, 상세 설명, 참여 멤버 목록을 준다. 정산 계좌(account)는 참여자에게만 채워진다 — 참여 전 화면에도 열려 있는 API라 항상 실으면 참여하지 않은 사람에게 계좌번호가 노출된다. 나눔 완료된 팟도 조회된다(채팅방은 완료 후에도 남고 그 화면 상단이 이 API를 쓴다).
- * @summary 팟 상세 조회
+ * 정원과 마감시간만 늘린다. 참여자가 이미 있어도 쓸 수 있는 유일한 변경 경로다 — 자리와 시간이 늘어나는 방향이라 참여자에게 손해가 없기 때문이다. 줄이는 방향(정원 축소·마감 앞당기기)은 POT_RECRUITMENT_CANNOT_SHRINK로 막는다. 총대가 아니면 POT_ACCESS_DENIED, 나눔이 끝난 팟이면 POT_NOT_ACTIVE. 마감이 이미 지난 팟도 늘려서 살릴 수 있다(정원이 안 차 마감만 지난 경우가 주 용도). 값이 실제로 바뀌면 채팅방에 변경 공지가 남는다. 본문 없이 성공만 응답한다 — 프론트는 저장 후 목록·상세를 새로 조회한다.
+ * @summary 모집 조건 확장
  */
-export const getPot = (
+export const expandRecruitment = (
   potId: number,
+  potRecruitmentUpdateRequest: BodyType<PotRecruitmentUpdateRequest>,
   options?: SecondParameter<typeof customInstance>,
   signal?: AbortSignal,
 ) => {
-  return customInstance<ApiResponsePotDetailResponse>(
-    { url: `/api/pots/${potId}`, method: 'GET', signal },
+  return customInstance<ApiResponseVoid>(
+    {
+      url: `/api/pots/${potId}/recruitment`,
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      data: potRecruitmentUpdateRequest,
+      signal,
+    },
     options,
   )
 }
 
-export const getGetPotQueryKey = (potId: number) => {
-  return [`/api/pots/${potId}`] as const
-}
-
-export const getGetPotQueryOptions = <
-  TData = Awaited<ReturnType<typeof getPot>>,
+export const getExpandRecruitmentMutationOptions = <
   TError = ErrorType<unknown>,
->(
-  potId: number,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>>
-    request?: SecondParameter<typeof customInstance>
-  },
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {}
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof expandRecruitment>>,
+    TError,
+    { potId: number; data: BodyType<PotRecruitmentUpdateRequest> },
+    TContext
+  >
+  request?: SecondParameter<typeof customInstance>
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof expandRecruitment>>,
+  TError,
+  { potId: number; data: BodyType<PotRecruitmentUpdateRequest> },
+  TContext
+> => {
+  const mutationKey = ['expandRecruitment']
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined }
 
-  const queryKey = queryOptions?.queryKey ?? getGetPotQueryKey(potId)
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof expandRecruitment>>,
+    { potId: number; data: BodyType<PotRecruitmentUpdateRequest> }
+  > = (props) => {
+    const { potId, data } = props ?? {}
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPot>>> = ({ signal }) =>
-    getPot(potId, requestOptions, signal)
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: potId !== null && potId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData> & {
-    queryKey: DataTag<QueryKey, TData, TError>
+    return expandRecruitment(potId, data, requestOptions)
   }
+
+  return { mutationFn, ...mutationOptions }
 }
 
-export type GetPotQueryResult = NonNullable<Awaited<ReturnType<typeof getPot>>>
-export type GetPotQueryError = ErrorType<unknown>
+export type ExpandRecruitmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof expandRecruitment>>
+>
+export type ExpandRecruitmentMutationBody = BodyType<PotRecruitmentUpdateRequest>
+export type ExpandRecruitmentMutationError = ErrorType<unknown>
 
-export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = ErrorType<unknown>>(
-  potId: number,
-  options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>> &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPot>>,
-          TError,
-          Awaited<ReturnType<typeof getPot>>
-        >,
-        'initialData'
-      >
-    request?: SecondParameter<typeof customInstance>
-  },
-  queryClient?: QueryClient,
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = ErrorType<unknown>>(
-  potId: number,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>> &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPot>>,
-          TError,
-          Awaited<ReturnType<typeof getPot>>
-        >,
-        'initialData'
-      >
-    request?: SecondParameter<typeof customInstance>
-  },
-  queryClient?: QueryClient,
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = ErrorType<unknown>>(
-  potId: number,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>>
-    request?: SecondParameter<typeof customInstance>
-  },
-  queryClient?: QueryClient,
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary 팟 상세 조회
+ * @summary 모집 조건 확장
  */
-
-export function useGetPot<TData = Awaited<ReturnType<typeof getPot>>, TError = ErrorType<unknown>>(
-  potId: number,
+export const useExpandRecruitment = <TError = ErrorType<unknown>, TContext = unknown>(
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getPot>>, TError, TData>>
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof expandRecruitment>>,
+      TError,
+      { potId: number; data: BodyType<PotRecruitmentUpdateRequest> },
+      TContext
+    >
     request?: SecondParameter<typeof customInstance>
   },
   queryClient?: QueryClient,
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetPotQueryOptions(potId, options)
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>
-  }
-
-  return withQueryKey(query, queryOptions.queryKey)
+): UseMutationResult<
+  Awaited<ReturnType<typeof expandRecruitment>>,
+  TError,
+  { potId: number; data: BodyType<PotRecruitmentUpdateRequest> },
+  TContext
+> => {
+  return useMutation(getExpandRecruitmentMutationOptions(options), queryClient)
 }
-
 /**
  * 채팅방 헤더/배너가 potId 없이 roomId만 가진 경우를 위한 역조회다. 필드·계좌 노출 정책은 GET /api/pots/{potId}와 동일하다. 배달팟에서 만들지 않은 채팅방이거나 아직 연동 전인 방이면 404.
  * @summary 채팅방 기준 팟 상세 조회
