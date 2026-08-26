@@ -45,23 +45,23 @@
 
   <rect x="0" y="0" width="650" height="940" fill="#ffffff"/>
 
-  <!-- User -->
-  <rect x="155" y="40" width="150" height="90" rx="10" fill="#f7fafc" stroke="#2d3748" stroke-width="1.5"/>
-  <use href="#icon-browser" x="208" y="48" width="44" height="44" color="#2d3748"/>
-  <text x="230" y="114" text-anchor="middle" font-size="12" font-weight="700" fill="#1a202c">사용자</text>
+  <!-- User (aligned with CloudFront's column) -->
+  <rect x="100" y="40" width="150" height="90" rx="10" fill="#f7fafc" stroke="#2d3748" stroke-width="1.5"/>
+  <use href="#icon-browser" x="153" y="48" width="44" height="44" color="#2d3748"/>
+  <text x="175" y="114" text-anchor="middle" font-size="12" font-weight="700" fill="#1a202c">사용자</text>
 
-  <!-- Kakao Map API (external) -->
-  <rect x="345" y="40" width="150" height="90" rx="10" fill="#fffbe6" stroke="#b7860b" stroke-width="1.5"/>
-  <use href="#icon-pin" x="398" y="48" width="44" height="44" color="#b7860b"/>
-  <text x="420" y="114" text-anchor="middle" font-size="12" font-weight="700" fill="#7a5b00">카카오맵 API</text>
+  <!-- Kakao Map API (aligned with S3's column, external) -->
+  <rect x="420" y="40" width="150" height="90" rx="10" fill="#fffbe6" stroke="#b7860b" stroke-width="1.5"/>
+  <use href="#icon-pin" x="473" y="48" width="44" height="44" color="#b7860b"/>
+  <text x="495" y="114" text-anchor="middle" font-size="12" font-weight="700" fill="#7a5b00">카카오맵 API</text>
 
   <!-- User -> Kakao -->
-  <path d="M305,85 L 345,85" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="325" y="72" text-anchor="middle" font-size="9" fill="#2d3748">지도 SDK 호출</text>
+  <path d="M250,85 L 420,85" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="335" y="72" text-anchor="middle" font-size="9" fill="#2d3748">지도 SDK 호출</text>
 
   <!-- AWS Cloud outer -->
   <rect x="40" y="160" width="570" height="730" rx="14" fill="#fffaf3" stroke="#ff9900" stroke-width="2" stroke-dasharray="8,5"/>
-  <text x="60" y="188" font-size="13" font-weight="700" fill="#b06a00">AWS Cloud (ap-northeast-2)</text>
+  <text x="350" y="188" font-size="13" font-weight="700" fill="#b06a00">AWS Cloud (ap-northeast-2)</text>
 
   <!-- CloudFront -->
   <rect x="100" y="210" width="150" height="94" rx="8" fill="#f3e8ff" stroke="#6a1b9a" stroke-width="1.5"/>
@@ -99,25 +99,25 @@
   <use href="#icon-db" x="308" y="700" width="44" height="44" color="#1565c0"/>
   <text x="330" y="772" text-anchor="middle" font-size="13" font-weight="700" fill="#1a202c">MySQL DB</text>
 
-  <!-- Arrows -->
+  <!-- Arrows (직선, 수평/수직만) -->
   <!-- User -> CloudFront -->
-  <path d="M230,130 C 230,170 175,170 175,210" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="200" y="175" font-size="10" fill="#2d3748">HTTPS</text>
+  <path d="M175,130 L 175,210" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="182" y="175" font-size="10" fill="#2d3748">HTTPS</text>
 
   <!-- CloudFront -> S3 -->
   <path d="M250,257 L 420,257" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
   <text x="335" y="245" text-anchor="middle" font-size="9.5" fill="#2d3748">정적 서빙</text>
 
   <!-- CloudFront -> EC2 backend (Spring) -->
-  <path d="M175,304 C 175,380 255,380 255,430" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="175" y="376" font-size="10" fill="#2d3748">"/api/*" 프록시 (:8080)</text>
+  <path d="M175,304 L 175,380 L 255,380 L 255,430" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="178" y="372" font-size="10" fill="#2d3748">"/api/*" 프록시 (:8080)</text>
 
   <!-- EC2 backend (Spring) -> EC2 db -->
-  <path d="M255,590 L 330,690" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="180" y="628" font-size="10" fill="#2d3748">JDBC :3306</text>
+  <path d="M255,590 L 255,625 L 330,625 L 330,690" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="290" y="618" text-anchor="middle" font-size="10" fill="#2d3748">JDBC :3306</text>
 
   <!-- EC2 backend (Spring) -> S3 (direct upload, bypass CloudFront) -->
-  <path d="M305,430 C 305,380 495,380 495,304" fill="none" stroke="#0f766e" stroke-width="1.6" stroke-dasharray="6,4" marker-end="url(#arrow-teal)"/>
-  <text x="415" y="370" font-size="9.5" fill="#0f766e">IAM Role → PutObject</text>
-  <text x="415" y="384" font-size="9.5" fill="#0f766e">(CDN 미경유 직접 업로드)</text>
+  <path d="M305,430 L 305,380 L 495,380 L 495,304" fill="none" stroke="#0f766e" stroke-width="1.6" stroke-dasharray="6,4" marker-end="url(#arrow-teal)"/>
+  <text x="345" y="358" font-size="9.5" fill="#0f766e">IAM Role → PutObject</text>
+  <text x="345" y="372" font-size="9.5" fill="#0f766e">(CDN 미경유 직접 업로드)</text>
 </svg>
