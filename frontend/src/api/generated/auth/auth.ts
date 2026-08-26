@@ -357,7 +357,7 @@ export function useMe<TData = Awaited<ReturnType<typeof me>>, TError = ErrorType
 }
 
 /**
- * 총대로 있는 진행 중인 팟이 있으면 탈퇴할 수 없다. 참여 중인 팟은 자동으로 나가기 처리된다.
+ * 총대로 있는 진행 중인 팟이 있으면 탈퇴할 수 없다. 참여 중인 팟은 자동으로 나가기 처리된다. 다른 기기에 남아있는 세션도 함께 무효화된다.
  * @summary 회원 탈퇴
  */
 export const withdraw = (
