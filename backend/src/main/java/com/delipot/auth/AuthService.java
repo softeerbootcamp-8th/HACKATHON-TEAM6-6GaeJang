@@ -76,17 +76,18 @@ public class AuthService {
 
 	/**
 	 * 회원 탈퇴. 총대로 있는 진행 중인 팟이 있으면 막고, 참여 중인 팟은 자동으로 나가기 처리한 뒤
-	 * soft delete하고 현재 세션까지 정리한다. 하나의 트랜잭션으로 묶어 "나가기는 됐는데 탈퇴는 실패"
-	 * 같은 어중간한 상태를 막는다.
+	 * soft delete하고 다른 기기에서 로그인된 것까지 포함해 이 회원의 모든 세션을 정리한다.
+	 * 하나의 트랜잭션으로 묶어 "나가기는 됐는데 탈퇴는 실패" 같은 어중간한 상태를 막는다.
 	 */
 	@Transactional
-	public void withdraw(Long memberId, String sessionId, String rememberMeToken) {
+	public void withdraw(Long memberId) {
 		if (potService.hasActiveHostedPot(memberId)) {
 			throw new BusinessException(ErrorCode.MEMBER_HAS_ACTIVE_POT);
 		}
 		potService.leaveAllActivePots(memberId);
 		memberService.withdraw(memberId);
-		logout(sessionId, rememberMeToken);
+		sessionStore.deleteAllByMemberId(memberId);
+		rememberMeStore.deleteAllByMemberId(memberId);
 	}
 
 	/** 세션은 항상 발급하고, remember-me 토큰은 '자동 로그인' 을 선택한 경우에만 발급한다. */

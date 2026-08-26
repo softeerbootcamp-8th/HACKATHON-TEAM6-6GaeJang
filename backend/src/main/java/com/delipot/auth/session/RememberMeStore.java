@@ -16,4 +16,7 @@ public interface RememberMeStore {
 
 	/** 회전/로그아웃 시 토큰을 즉시 제거한다. */
 	void delete(String token);
+
+	/** 탈퇴 등에서 이 회원이 가진 모든 remember-me 토큰(다른 기기 포함)을 즉시 제거한다. */
+	void deleteAllByMemberId(Long memberId);
 }

@@ -147,7 +147,7 @@ class AuthServiceTest {
 	void withdrawBlockedByActiveHostedPot() {
 		given(potService.hasActiveHostedPot(MEMBER_ID)).willReturn(true);
 
-		assertThatThrownBy(() -> authService.withdraw(MEMBER_ID, "sid", "rid"))
+		assertThatThrownBy(() -> authService.withdraw(MEMBER_ID))
 			.isInstanceOf(BusinessException.class)
 			.extracting(e -> ((BusinessException) e).getErrorCode())
 			.isEqualTo(ErrorCode.MEMBER_HAS_ACTIVE_POT);
@@ -158,15 +158,15 @@ class AuthServiceTest {
 	}
 
 	@Test
-	@DisplayName("탈퇴: 총대인 진행 중 팟이 없으면 참여 중인 팟을 나간 뒤 탈퇴하고 세션을 정리한다")
+	@DisplayName("탈퇴: 총대인 진행 중 팟이 없으면 참여 중인 팟을 나간 뒤 탈퇴하고, 다른 기기 세션까지 전부 정리한다")
 	void withdrawSucceeds() {
 		given(potService.hasActiveHostedPot(MEMBER_ID)).willReturn(false);
 
-		authService.withdraw(MEMBER_ID, "sid", "rid");
+		authService.withdraw(MEMBER_ID);
 
 		verify(potService).leaveAllActivePots(MEMBER_ID);
 		verify(memberService).withdraw(MEMBER_ID);
-		verify(sessionStore).delete("sid");
-		verify(rememberMeStore).delete("rid");
+		verify(sessionStore).deleteAllByMemberId(MEMBER_ID);
+		verify(rememberMeStore).deleteAllByMemberId(MEMBER_ID);
 	}
 }
