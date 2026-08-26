@@ -102,7 +102,7 @@ public class StoreNameExtractor {
 		}
 
 		return parser.parse(app, fetchHtml(uri.get(), app))
-			.map(name -> StoreNameResponse.extracted(name, app))
+			.map(info -> StoreNameResponse.extracted(info, app))
 			.orElseGet(() -> StoreNameResponse.unavailable(app, FAILURE_MESSAGE));
 	}
 
