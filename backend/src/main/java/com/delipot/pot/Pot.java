@@ -150,7 +150,8 @@ public class Pot {
 	/**
 	 * 팟이 {@code ACTIVE}인 동안 누군가 나간 적이 있는지. 총대는 완료 전엔 나갈 수 없으므로(
 	 * {@link PotService#leave}) 이 시점의 "누군가"는 항상 참여자다.
-	 * "총대 경험" 조건 — 완료 전 이탈이 있었으면 그 팟은 경험치로 치지 않는다 — 판정에만 쓴다.
+	 * 완료 시 총대만 남아 있어도 이 값이 true면 과거에 참여자가 있었다는 뜻이므로,
+	 * "참여자가 한 번이라도 있었던 팟"이라는 총대 경험 조건을 판정하는 데 쓴다.
 	 */
 	@Column(nullable = false)
 	private boolean hasMemberLeft;
@@ -252,7 +253,7 @@ public class Pot {
 	 * {@link PotRepository#completeAbandoned}의 {@code case when}에도 동일하게 맞춰뒀다.
 	 */
 	public void complete() {
-		this.countsAsHostExperience = currentMemberCount > 1 && !hasMemberLeft;
+		this.countsAsHostExperience = currentMemberCount > 1 || hasMemberLeft;
 		this.status = PotStatus.DONE;
 	}
 
