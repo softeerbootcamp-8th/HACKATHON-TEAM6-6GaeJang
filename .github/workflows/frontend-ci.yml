@@ -1,0 +1,40 @@
+name: frontend-ci
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/frontend-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm -C frontend lint
+
+      # typecheck 안에서 routes:gen 이 먼저 돌아 routeTree.gen.ts 를 만든다.
+      - name: Typecheck
+        run: pnpm -C frontend typecheck
+
+      - name: Build
+        run: pnpm -C frontend build

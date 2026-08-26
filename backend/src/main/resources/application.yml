@@ -1,0 +1,133 @@
+spring:
+  application:
+    name: delipot-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  jackson:
+    # Jackson 3(Boot 4) 기본이 ISO-8601 문자열이라 날짜 포맷 설정은 따로 두지 않는다.
+    default-property-inclusion: non_null
+    # 응답의 시각을 서버 OS 타임존이 아니라 항상 +09:00으로 직렬화한다.
+    # AppConfig.SERVICE_ZONE 과 같은 값이어야 한다.
+    time-zone: Asia/Seoul
+  servlet:
+    multipart:
+      # 비즈니스 제한(5MB)보다 넉넉하게 잡아, 초과 시 서블릿 단이 아니라 우리 쪽에서
+      # 친절한 에러 메시지로 끊게 한다.
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+server:
+  port: 8080
+
+app:
+  version: 0.0.1-SNAPSHOT
+  cors:
+    allowed-origins: http://localhost:5173
+  aws:
+    s3:
+      bucket: delipot-s3-523224780149-ap-northeast-2-an
+      region: ap-northeast-2
+      # CloudFront 등으로 버킷을 프록시할 때 그 도메인. 비어 있으면(로컬/h2) 업로더가 S3 버킷
+      # 도메인으로 직접 URL을 만든다. 버킷이 CloudFront OAC 뒤에 있어 공개 읽기가 막혀 있는
+      # 환경(prod)에서는 반드시 채워야 이미지가 보인다.
+      public-base-url: ${S3_PUBLIC_BASE_URL:}
+  session:
+    cookie-name: SID
+    # 세션 슬라이딩 만료(초). 인증된 요청마다 갱신. 자동 로그인은 remember-me 가 담당한다.
+    ttl-seconds: 1800
+    # 로컬은 http 라 false, prod 프로파일에서 true 로 덮어써 HTTPS 에서만 쿠키가 실리게 한다.
+    cookie-secure: false
+    # remember-me(자동 로그인) 토큰 — 세션이 만료돼도 이걸로 조용히 새 세션을 발급한다.
+    remember-cookie-name: RID
+    remember-ttl-seconds: 1209600  # 14일
+
+# 프론트 Orval이 읽는 스펙 경로. Swagger UI: http://localhost:8080/swagger-ui.html
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+---
+# 기본 로컬 개발: docker compose up -d 로 띄운 MySQL 사용
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:mysql://localhost:3307/delipot?characterEncoding=UTF-8&serverTimezone=Asia/Seoul
+    username: delipot
+    password: delipot
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # 해커톤 기간 동안 로컬은 update 고정. 스키마 확정 후 마이그레이션 도입 시 validate로 전환.
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  data:
+    redis:
+      host: localhost
+      # docker compose 의 redis 를 호스트 6380 으로 매핑했다.
+      port: 6380
+logging:
+  level:
+    org.hibernate.SQL: debug
+
+---
+# MySQL 없이 백엔드만 띄울 때 (스펙 생성, 프론트 단독 작업)
+spring:
+  config:
+    activate:
+      on-profile: h2
+  datasource:
+    url: jdbc:h2:mem:delipot;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  h2:
+    console:
+      # 개발 편의용. h2 프로파일에서만 켠다 — local/prod는 실 MySQL이라 해당 없음.
+      enabled: true
+      path: /h2-console
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # 해커톤 기간: 마이그레이션 도구 없이 엔티티가 자주 바뀌므로, 없는 테이블을 자동 생성하도록 update 사용.
+      # (validate 는 사람이 DDL 을 선적용해야 해 배포가 막혔다.) 스키마 안정화되면 validate 로 되돌린다.
+      ddl-auto: update
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # 필요 시에만 주입. 없으면 인증 없이 접속.
+      password: ${REDIS_PASSWORD:}
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  session:
+    # 운영은 HTTPS 라 쿠키에 Secure 를 강제한다.
+    cookie-secure: true
