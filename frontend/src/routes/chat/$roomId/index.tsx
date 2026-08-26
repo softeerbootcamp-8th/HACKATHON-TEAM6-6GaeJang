@@ -154,9 +154,11 @@ function ChatRoomPage() {
 
       {potData?.account && <PotAccountBanner account={potData.account} />}
 
-      {(error ?? uploadImage.error?.message ?? leavePot.error?.message) && (
+      {/* 사진 업로드 실패(용량 제한 등으로 인프라 단에서 403이 나는 경우 포함)는 기획 요구사항에 따라
+          에러 문구를 노출하지 않는다 — 사용자는 그냥 사진이 전송되지 않은 채로 다시 시도하면 된다. */}
+      {(error ?? leavePot.error?.message) && (
         <p role="alert" className="text-down bg-muted px-4 py-2 text-center text-xs">
-          {error ?? uploadImage.error?.message ?? leavePot.error?.message}
+          {error ?? leavePot.error?.message}
         </p>
       )}
 
