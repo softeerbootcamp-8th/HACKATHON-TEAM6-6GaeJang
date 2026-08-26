@@ -12,6 +12,7 @@ import { requireAuth } from '@/lib/authGuard'
 import { useDebouncedValue } from './-hooks/useDebouncedValue'
 import { AddressSetupStep } from './-components/address/AddressSetupStep'
 import type { SelectedLocation } from './-components/address/KakaoMapPicker'
+import { AppLogoHeader } from './-components/AppLogoHeader'
 import { MobileBottomNav } from './-components/MobileBottomNav'
 import { PotCard } from './-components/PotCard'
 import { PotDetailSheet } from './-components/PotDetailSheet'
@@ -146,6 +147,7 @@ function HomePage() {
     <main aria-label="배달팟 홈" className="app-shell">
       <div className="relative flex h-full flex-col">
         <header className="bg-bg z-20 shrink-0 px-5 pb-2">
+          <AppLogoHeader />
           <button
             type="button"
             onClick={openAddressPicker}
