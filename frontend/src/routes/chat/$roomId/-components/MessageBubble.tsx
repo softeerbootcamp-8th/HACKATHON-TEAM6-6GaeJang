@@ -27,7 +27,7 @@ function Avatar({ nickname, isMine }: { nickname?: string; isMine: boolean }) {
   return (
     <div
       className={cn(
-        'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
+        'flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
         isMine ? 'bg-primary text-primary-fg' : 'bg-muted text-fg',
       )}
       aria-hidden
@@ -53,7 +53,7 @@ export function MessageBubble({ message, isMine, nickname, myNickname }: Message
   const isLink = message.type === ChatMessageResponseType.LINK
 
   return (
-    <div className={cn('flex items-start gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}>
+    <div className={cn('flex items-start gap-2.5', isMine ? 'flex-row-reverse' : 'flex-row')}>
       {!isMine && <Avatar nickname={nickname} isMine={isMine} />}
       <div className={cn('flex flex-col gap-1', isMine ? 'items-end' : 'items-start')}>
         {!isMine && nickname && <span className="text-muted-fg px-0.5 text-xs">{nickname}</span>}
