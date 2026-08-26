@@ -10,11 +10,7 @@ import jakarta.validation.constraints.NotNull;
 
 /**
  * 모집 조건 확장 요청. 정원과 마감시간만 담는다.
- *
- * <p>{@link PotUpdateRequest}와 나누는 이유는 두 경로의 규칙이 다르기 때문이다. 전체 수정은
- * 참여자가 없을 때만 열리고 값을 통째로 갈아끼우지만, 이쪽은 참여자가 있어도 열리는 대신
- * 늘리는 방향만 허용한다. 한 요청 타입으로 합치면 서버가 나머지 필드의 "안 바뀜"을 값 비교로
- * 확인해야 하고(좌표 scale·null/빈문자열 차이로 오탐이 난다), 규칙 두 벌이 한 메서드에 섞인다.
+ * {@link PotUpdateRequest}와 나눈 이유는 두 경로의 허용 규칙이 반대여서다.
  */
 @Schema(description = "모집 조건 확장 요청. 정원·마감시간을 늘릴 때만 쓴다")
 public record PotRecruitmentUpdateRequest(
