@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Plus, Search, X } from 'lucide-react'
 
@@ -16,16 +16,29 @@ import { AppLogoHeader } from './-components/AppLogoHeader'
 import { MobileBottomNav } from './-components/MobileBottomNav'
 import { PotCard } from './-components/PotCard'
 import { PotDetailSheet } from './-components/PotDetailSheet'
+import { PullToRefreshIndicator, usePullToRefresh } from './-components/PullToRefresh'
 
 export const Route = createFileRoute('/')({
-  beforeLoad: ({ context }) => requireAuth(context.queryClient),
+  beforeLoad: async ({ context, search }) => {
+    await requireAuth(context.queryClient)
+    if (search.openPotID && !search.openPotId) {
+      throw redirect({
+        to: '/',
+        search: { openPotId: search.openPotID },
+        replace: true,
+      })
+    }
+  },
   validateSearch: (
     search: Record<string, unknown>,
-  ): { openPotId?: number; revealPotId?: number } => {
+  ): { openPotId?: number; openPotID?: number; revealPotId?: number } => {
     const openPotId = Number(search.openPotId)
+    const legacyOpenPotId = Number(search.openPotID)
     const revealPotId = Number(search.revealPotId)
 
     if (Number.isSafeInteger(openPotId) && openPotId > 0) return { openPotId }
+    if (Number.isSafeInteger(legacyOpenPotId) && legacyOpenPotId > 0)
+      return { openPotID: legacyOpenPotId }
     if (Number.isSafeInteger(revealPotId) && revealPotId > 0) return { revealPotId }
     return {}
   },
@@ -34,7 +47,8 @@ export const Route = createFileRoute('/')({
 
 function HomePage() {
   const navigate = useNavigate()
-  const { openPotId, revealPotId } = Route.useSearch()
+  const { openPotId: canonicalOpenPotId, openPotID, revealPotId } = Route.useSearch()
+  const openPotId = canonicalOpenPotId ?? openPotID
   const [keyword, setKeyword] = useState('')
   const [isComposingKeyword, setIsComposingKeyword] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -60,6 +74,15 @@ function HomePage() {
   }, [])
 
   const queryClient = useQueryClient()
+  const refreshPage = useCallback(
+    () => queryClient.refetchQueries({ type: 'active' }),
+    [queryClient],
+  )
+  const {
+    scrollRef: pullToRefreshRef,
+    pullDistance,
+    isRefreshing,
+  } = usePullToRefresh({ onRefresh: refreshPage })
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
   const debouncedKeyword = useDebouncedValue(keyword.trim(), 300, !isComposingKeyword)
@@ -146,8 +169,9 @@ function HomePage() {
   return (
     <main aria-label="배달팟 홈" className="app-shell">
       <div className="relative flex h-full flex-col">
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
         <header className="bg-bg z-20 shrink-0 px-5 pb-2">
-          <AppLogoHeader />
+          <AppLogoHeader compact />
           <button
             type="button"
             onClick={openAddressPicker}
@@ -189,7 +213,10 @@ function HomePage() {
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-32">
+        <div
+          ref={pullToRefreshRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-32"
+        >
           <p className="text-muted-fg pt-3 text-center text-xs">내 주변 300m 내의 배달팟이에요</p>
 
           {!member && !me.isPending ? (
@@ -260,7 +287,13 @@ function HomePage() {
         {openPotId != null && (
           <PotDetailSheet
             potId={openPotId}
-            onClose={() => navigate({ to: '/', search: {}, replace: true })}
+            onClose={() =>
+              navigate({
+                to: '/',
+                search: () => ({}),
+                replace: true,
+              })
+            }
           />
         )}
       </div>

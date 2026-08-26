@@ -1,7 +1,13 @@
-import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, MapPin, Store, UsersRound, X } from 'lucide-react'
+import { Check, Copy, ExternalLink, MapPin, Store, UsersRound, X } from 'lucide-react'
 
 import {
   getGetPotQueryKey,
@@ -133,7 +139,8 @@ function PotOverview({ detail, onJoin }: { detail: PotDetailResponse; onJoin: ()
     !detail.isDeadlinePassed &&
     (detail.currentMemberCount ?? 0) < (detail.capacity ?? 0)
   const chatPath = detail.chatRoomId ? `/chat/${detail.chatRoomId}` : undefined
-  const meetingAddress = formatLocalAddress(detail.meetingRoadAddress || detail.meetingPlace)
+  const meetingAddressSource = detail.meetingRoadAddress || detail.meetingPlace || ''
+  const meetingAddress = formatLocalAddress(meetingAddressSource)
   const meetingJibunAddress = formatLocalAddress(detail.meetingJibunAddress)
 
   return (
@@ -178,13 +185,14 @@ function PotOverview({ detail, onJoin }: { detail: PotDetailResponse; onJoin: ()
           <div className="flex items-start gap-3">
             <MapPin className="text-muted-fg/50 mt-0.5 size-5 shrink-0" />
             <span className="text-muted-fg w-14 shrink-0">만날 장소</span>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="font-semibold">{meetingAddress}</span>
               {/* 지번은 도로명과 다른 값이 있을 때만 보조로 보여준다. */}
               {meetingJibunAddress && meetingJibunAddress !== meetingAddress && (
                 <span className="text-muted-fg/70 mt-0.5 block text-xs">{meetingJibunAddress}</span>
               )}
             </div>
+            <CopyAddressButton address={meetingAddressSource} />
           </div>
         </div>
 
@@ -248,6 +256,85 @@ function PotOverview({ detail, onJoin }: { detail: PotDetailResponse; onJoin: ()
       </div>
     </div>
   )
+}
+
+function CopyAddressButton({ address }: { address: string }) {
+  const [status, setStatus] = useState<'idle' | 'copied' | 'error'>('idle')
+  const resetTimerRef = useRef<number | null>(null)
+
+  useEffect(
+    () => () => {
+      if (resetTimerRef.current != null) window.clearTimeout(resetTimerRef.current)
+    },
+    [],
+  )
+
+  const copyAddress = async () => {
+    if (!address) return
+
+    try {
+      await copyText(address)
+      setStatus('copied')
+    } catch {
+      setStatus('error')
+    }
+
+    if (resetTimerRef.current != null) window.clearTimeout(resetTimerRef.current)
+    resetTimerRef.current = window.setTimeout(() => setStatus('idle'), 1800)
+  }
+
+  return (
+    <div className="shrink-0">
+      <button
+        type="button"
+        onClick={() => void copyAddress()}
+        disabled={!address}
+        aria-label="만날 장소 주소 복사"
+        className="bg-bg text-muted-fg hover:text-fg flex h-8 items-center gap-1 rounded-lg border px-2 text-xs font-semibold disabled:opacity-40"
+      >
+        {status === 'copied' ? (
+          <Check className="text-up size-3.5" />
+        ) : (
+          <Copy className="size-3.5" />
+        )}
+        {status === 'copied' ? '복사됨' : '복사'}
+      </button>
+      <span className="sr-only" aria-live="polite">
+        {status === 'copied'
+          ? '만날 장소 주소를 복사했습니다.'
+          : status === 'error'
+            ? '주소를 복사하지 못했습니다.'
+            : ''}
+      </span>
+    </div>
+  )
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // 권한이 제한된 구형 Safari에서는 아래 selection 기반 복사로 한 번 더 시도한다.
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+  textarea.setSelectionRange(0, textarea.value.length)
+
+  try {
+    if (!document.execCommand('copy')) throw new Error('copy failed')
+  } finally {
+    textarea.remove()
+  }
 }
 
 function MenuEntry({ detail, onClose }: { detail: PotDetailResponse; onClose: () => void }) {
