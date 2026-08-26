@@ -169,7 +169,6 @@ function HomePage() {
   return (
     <main aria-label="배달팟 홈" className="app-shell">
       <div className="relative flex h-full flex-col">
-        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
         <header className="bg-bg z-20 shrink-0 px-5 pb-2">
           <AppLogoHeader compact />
           <button
@@ -217,6 +216,7 @@ function HomePage() {
           ref={pullToRefreshRef}
           className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-32"
         >
+          <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
           <p className="text-muted-fg pt-3 text-center text-xs">내 주변 300m 내의 배달팟이에요</p>
 
           {!member && !me.isPending ? (

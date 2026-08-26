@@ -60,13 +60,13 @@ function MyPage() {
   return (
     <main aria-label="마이페이지" className="app-shell">
       <div className="relative h-full">
-        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
         <div
           ref={pullToRefreshRef}
           className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32"
         >
           <header>
             <AppLogoHeader />
+            <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
             <div className="flex h-14 items-center">
               <h1 className="text-xl font-bold">마이페이지</h1>
             </div>

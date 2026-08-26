@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
 
 const PULL_THRESHOLD = 72
 const MAX_PULL_DISTANCE = 96
@@ -119,20 +118,48 @@ export function PullToRefreshIndicator({
   isRefreshing,
 }: PullToRefreshIndicatorProps) {
   const progress = Math.min(1, pullDistance / PULL_THRESHOLD)
+  const expandedHeight = isRefreshing ? 44 : Math.min(56, pullDistance * 0.65)
+  const arcLength = 18 + progress * 58
+  const transitionDuration = expandedHeight === 0 ? 240 : isRefreshing ? 180 : 50
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex justify-center">
-      <div
-        className="bg-bg flex size-9 items-center justify-center rounded-full border shadow-sm transition-[transform,opacity] duration-150"
-        style={{
-          opacity: progress,
-          transform: `translateY(${pullDistance - 40}px)`,
-        }}
-      >
-        <RefreshCw
-          className={`text-primary size-4 ${isRefreshing ? 'animate-spin' : ''}`}
-          style={isRefreshing ? undefined : { transform: `rotate(${progress * 240}deg)` }}
-        />
+    <div
+      className="pointer-events-none overflow-hidden transition-[height] ease-out"
+      style={{ height: expandedHeight, transitionDuration: `${transitionDuration}ms` }}
+    >
+      <div className="flex h-full items-center justify-center">
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          className={`size-6 ${isRefreshing ? 'animate-[spin_0.7s_linear_infinite]' : ''}`}
+          style={
+            isRefreshing
+              ? undefined
+              : { opacity: progress, transform: `rotate(${progress * 220 - 90}deg)` }
+          }
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            className="text-primary/15"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            pathLength="100"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeDasharray={`${arcLength} 100`}
+            className="text-primary"
+          />
+        </svg>
       </div>
       <span className="sr-only" aria-live="polite">
         {isRefreshing ? '새로고침 중' : ''}
