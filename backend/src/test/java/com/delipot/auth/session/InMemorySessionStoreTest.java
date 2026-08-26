@@ -66,4 +66,18 @@ class InMemorySessionStoreTest {
 
 		assertThat(store.find(sid)).isEmpty();
 	}
+
+	@Test
+	@DisplayName("deleteAllByMemberId는 다른 기기에서 발급한 세션까지 전부 지운다")
+	void deleteAllByMemberIdRemovesEveryDevice() {
+		String sidA = store.create(7L);
+		String sidB = store.create(7L);
+		String otherMemberSid = store.create(9L);
+
+		store.deleteAllByMemberId(7L);
+
+		assertThat(store.find(sidA)).isEmpty();
+		assertThat(store.find(sidB)).isEmpty();
+		assertThat(store.find(otherMemberSid)).contains(9L);
+	}
 }

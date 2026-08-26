@@ -15,6 +15,7 @@ export interface SignupRequest {
   /**
    * @minLength 1
    * @maxLength 64
+   * @pattern ^[!-~]*$
    */
   password: string
   /**

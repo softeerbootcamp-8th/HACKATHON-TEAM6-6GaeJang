@@ -22,6 +22,9 @@ public interface SessionStore {
 	/** 로그아웃 등에서 세션을 즉시 제거한다. */
 	void delete(String sid);
 
+	/** 탈퇴 등에서 이 회원이 가진 모든 세션(다른 기기 포함)을 즉시 제거한다. */
+	void deleteAllByMemberId(Long memberId);
+
 	// --- 공통 유틸 ---
 
 	SecureRandom RANDOM = new SecureRandom();

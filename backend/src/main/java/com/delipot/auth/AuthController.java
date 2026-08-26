@@ -88,17 +88,11 @@ public class AuthController {
 		return ApiResponse.ok(MemberResponse.from(memberService.updateProfile(memberId, request)));
 	}
 
-	@Operation(summary = "회원 탈퇴", description = "총대로 있는 진행 중인 팟이 있으면 탈퇴할 수 없다. 참여 중인 팟은 자동으로 나가기 처리된다.")
+	@Operation(summary = "회원 탈퇴", description = "총대로 있는 진행 중인 팟이 있으면 탈퇴할 수 없다. 참여 중인 팟은 자동으로 나가기 처리된다. 다른 기기에 남아있는 세션도 함께 무효화된다.")
 	@RequireAuthenticate
 	@DeleteMapping("/me")
-	public ApiResponse<Void> withdraw(
-		@LoginMember Long memberId,
-		HttpServletRequest request,
-		HttpServletResponse response
-	) {
-		String sessionId = cookieManager.resolveSessionId(request).orElse(null);
-		String rememberMe = cookieManager.resolveRememberMe(request).orElse(null);
-		authService.withdraw(memberId, sessionId, rememberMe);
+	public ApiResponse<Void> withdraw(@LoginMember Long memberId, HttpServletResponse response) {
+		authService.withdraw(memberId);
 		response.addHeader(HttpHeaders.SET_COOKIE, cookieManager.expire().toString());
 		response.addHeader(HttpHeaders.SET_COOKIE, cookieManager.expireRememberMe().toString());
 		return ApiResponse.ok();

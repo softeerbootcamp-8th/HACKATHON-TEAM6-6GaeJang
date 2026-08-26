@@ -51,4 +51,18 @@ class InMemoryRememberMeStoreTest {
 
 		assertThat(store.find(token)).isEmpty();
 	}
+
+	@Test
+	@DisplayName("deleteAllByMemberId는 다른 기기에서 발급한 토큰까지 전부 지운다")
+	void deleteAllByMemberIdRemovesEveryDevice() {
+		String tokenA = store.issue(9L);
+		String tokenB = store.issue(9L);
+		String otherMemberToken = store.issue(3L);
+
+		store.deleteAllByMemberId(9L);
+
+		assertThat(store.find(tokenA)).isEmpty();
+		assertThat(store.find(tokenB)).isEmpty();
+		assertThat(store.find(otherMemberToken)).contains(3L);
+	}
 }

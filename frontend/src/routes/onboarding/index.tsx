@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { getMeQueryKey, useSignup } from '@/api/generated/auth/auth'
 import { redirectIfAuthenticated } from '@/lib/authGuard'
@@ -24,6 +24,25 @@ function OnboardingPage() {
   const [phoneNumber, setPhoneNumber] = useState('')
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
+
+  // 주소입력 단계는 URL이 안 바뀌어 브라우저 히스토리에 항목이 안 쌓인다. 그대로 두면
+  // 뒤로가기를 눌렀을 때 계정정보 단계가 아니라 /onboarding 이전 페이지(로그인 등)로
+  // 튕긴다. pushState로 항목을 하나 쌓고 popstate에서 계정정보로 돌려보내 맞춘다.
+  const goToAddressStep = () => {
+    window.history.pushState({ onboardingStep: 'address' }, '')
+    setStep('address')
+  }
+
+  useEffect(() => {
+    // AddressSetupStep이 지도 화면용으로 항목을 하나 더 쌓을 수 있으니, 무조건 계정정보로
+    // 돌리지 않고 popstate가 남긴 state를 보고 판단한다 — 지도→검색처럼 이 단계 안쪽으로
+    // 돌아온 경우까지 계정정보로 튕겨버리면 안 된다.
+    const handlePopState = (event: PopStateEvent) => {
+      setStep(event.state?.onboardingStep === 'address' ? 'address' : 'account')
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   const signup = useSignup({
     mutation: {
@@ -66,7 +85,7 @@ function OnboardingPage() {
             onChangePassword={setPassword}
             nickname={nickname}
             onChangeNickname={setNickname}
-            onNext={() => setStep('address')}
+            onNext={goToAddressStep}
           />
           <footer className="-mt-8 pb-10 text-center">
             <p className="text-muted-fg text-sm">
@@ -81,7 +100,7 @@ function OnboardingPage() {
 
       {step === 'address' && (
         <AddressSetupStep
-          onBack={() => setStep('account')}
+          onBack={() => window.history.back()}
           onComplete={handleCompleteAddress}
           isSubmitting={signup.isPending}
         />

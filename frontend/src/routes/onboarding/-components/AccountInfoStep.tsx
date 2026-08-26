@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils'
 import { useCapsLockWarning } from '@/hooks/useCapsLockWarning'
 import { useNicknameAvailability } from '../../-hooks/useNicknameAvailability'
 
+/** 비밀번호: 영어 대소문자, 숫자, 특수문자만. 백엔드 SignupRequest의 @Pattern과 동일하게 맞춘다. */
+const PASSWORD_PATTERN = /^[!-~]*$/
+
 type AccountInfoStepProps = {
   phoneNumber: string
   onChangePhoneNumber: (value: string) => void
@@ -113,7 +116,8 @@ export function AccountInfoStep({
   // 폼 전체 유효성 검사 (State I)
   const isPhoneValid = rawPhone.length >= 10
   const isCodeValid = hasRequestedCode && verificationCode.length === 6 && timerSeconds > 0
-  const isPasswordValid = password.length >= 1 && password.length <= 20
+  const isPasswordFormatValid = PASSWORD_PATTERN.test(password)
+  const isPasswordValid = password.length >= 1 && password.length <= 20 && isPasswordFormatValid
   const isFormValid = isPhoneValid && isCodeValid && isPasswordValid && isNickAvailable
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -197,9 +201,9 @@ export function AccountInfoStep({
                   placeholder={isGeneratingCode ? '인증번호 수신 대기 중…' : '인증번호 6자리'}
                   value={verificationCode}
                   aria-label="인증번호"
-                  className="flex-1 bg-transparent text-base font-semibold tracking-wider text-fg outline-none select-none cursor-default placeholder:text-muted-fg placeholder:font-normal placeholder:tracking-normal"
+                  className="min-w-0 flex-1 bg-transparent text-base font-semibold tracking-wider text-fg outline-none select-none cursor-default placeholder:text-muted-fg placeholder:font-normal placeholder:tracking-normal"
                 />
-                <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-3">
                   <span className={cn('text-xs font-medium', timerSeconds <= 30 ? 'text-down' : 'text-primary')}>
                     {formatTime(timerSeconds)}
                   </span>
@@ -207,7 +211,7 @@ export function AccountInfoStep({
                     type="button"
                     onClick={handleResend}
                     disabled={isGeneratingCode}
-                    className="text-muted-fg hover:text-fg text-xs font-semibold underline underline-offset-2"
+                    className="text-muted-fg hover:text-fg whitespace-nowrap text-xs font-semibold underline underline-offset-2"
                   >
                     재요청
                   </button>
@@ -227,7 +231,7 @@ export function AccountInfoStep({
             <div className="flex h-13 items-center rounded-xl border border-border bg-bg px-3.5 transition-colors focus-within:border-primary">
               <input
                 type="password"
-                placeholder="영어 대소문자 + 숫자"
+                placeholder="영어 대소문자/숫자/특수 문자 사용 가능"
                 value={password}
                 maxLength={20}
                 onChange={(e) => onChangePassword(e.target.value)}
@@ -242,6 +246,11 @@ export function AccountInfoStep({
                 Caps Lock이 켜져 있습니다.
               </p>
             )}
+            {password && !isPasswordFormatValid && (
+              <p role="alert" className="text-down text-xs">
+                영문, 숫자, 특수 문자만 사용 가능합니다.
+              </p>
+            )}
           </div>
 
           {/* 닉네임 영역 (State H) */}
@@ -250,7 +259,7 @@ export function AccountInfoStep({
             <div className="relative flex h-13 items-center rounded-xl border border-border bg-bg px-3.5 transition-colors focus-within:border-primary">
               <input
                 type="text"
-                placeholder="2-10자, 한글/영문 사용 가능"
+                placeholder="2-10자, 한글/영문/숫자 사용 가능"
                 value={nickname}
                 maxLength={10}
                 onChange={(e) => onChangeNickname(e.target.value)}
