@@ -2,6 +2,8 @@ package com.delipot.store;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Optional;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -16,12 +18,17 @@ class StoreNamePageParserTest {
 
 	private final StoreNamePageParser parser = new StoreNamePageParser();
 
+	/** 대부분의 테스트는 가게명만 보므로, 성공했다는 전제로 가게명만 꺼내는 헬퍼. */
+	private Optional<String> storeName(StoreProvider provider, String html) {
+		return parser.parse(provider, html).map(StoreNamePageParser.StorePageInfo::storeName);
+	}
+
 	@Test
 	@DisplayName("쿠팡이츠 - 첫 대괄호 안을 가게명으로 뽑고 평점·리뷰수는 버린다")
 	void coupangEatsTakesBracketedName() {
 		String html = meta("og:title", "[호백반점] ★ 4.9(6,127)");
 
-		assertThat(parser.parse(StoreProvider.COUPANG_EATS, html)).contains("호백반점");
+		assertThat(storeName(StoreProvider.COUPANG_EATS, html)).contains("호백반점");
 	}
 
 	@Test
@@ -37,7 +44,7 @@ class StoreNamePageParserTest {
 	void yogiyoUsesTitleAsIs() {
 		String html = meta("og:title", "60계치킨-광주용봉점");
 
-		assertThat(parser.parse(StoreProvider.YOGIYO, html)).contains("60계치킨-광주용봉점");
+		assertThat(storeName(StoreProvider.YOGIYO, html)).contains("60계치킨-광주용봉점");
 	}
 
 	/**
@@ -65,7 +72,7 @@ class StoreNamePageParserTest {
 	void bracketRuleAloneIsIndiscriminate() {
 		String html = meta("og:title", "[오늘의 프로모션] 배달팁 무료");
 
-		assertThat(parser.parse(StoreProvider.COUPANG_EATS, html)).contains("오늘의 프로모션");
+		assertThat(storeName(StoreProvider.COUPANG_EATS, html)).contains("오늘의 프로모션");
 	}
 
 	@Test
@@ -80,7 +87,7 @@ class StoreNamePageParserTest {
 	void readsReversedAttributeOrder() {
 		String html = "<meta content=\"60계치킨-광주용봉점\" property=\"og:title\" />";
 
-		assertThat(parser.parse(StoreProvider.YOGIYO, html)).contains("60계치킨-광주용봉점");
+		assertThat(storeName(StoreProvider.YOGIYO, html)).contains("60계치킨-광주용봉점");
 	}
 
 	@Test
@@ -88,7 +95,7 @@ class StoreNamePageParserTest {
 	void fallsBackToTwitterTitle() {
 		String html = meta("twitter:title", "60계치킨-광주용봉점");
 
-		assertThat(parser.parse(StoreProvider.YOGIYO, html)).contains("60계치킨-광주용봉점");
+		assertThat(storeName(StoreProvider.YOGIYO, html)).contains("60계치킨-광주용봉점");
 	}
 
 	@Test
@@ -96,7 +103,7 @@ class StoreNamePageParserTest {
 	void unescapesHtmlEntities() {
 		String html = meta("og:title", "BBQ &amp; 치킨 강남점");
 
-		assertThat(parser.parse(StoreProvider.YOGIYO, html)).contains("BBQ & 치킨 강남점");
+		assertThat(storeName(StoreProvider.YOGIYO, html)).contains("BBQ & 치킨 강남점");
 	}
 
 	@Test
@@ -128,5 +135,70 @@ class StoreNamePageParserTest {
 			<meta property="%s" content="%s" />
 			</head><body></body></html>
 			""".formatted(property, content);
+	}
+
+	// ---------- 채팅 링크 미리보기 카드용 (og:image / og:description) ----------
+
+	@Test
+	@DisplayName("가게명과 함께 og:image·og:description이 있으면 미리보기 카드용으로 함께 담는다")
+	void extractsImageAndDescriptionAlongsideStoreName() {
+		String html = """
+			<!DOCTYPE html><html><head>
+			<meta charset="utf-8">
+			<meta property="og:title" content="[호백반점] ★ 4.9(6,127)" />
+			<meta property="og:image" content="https://img.coupangeats.com/store/1.jpg" />
+			<meta property="og:description" content="든든한 한 끼, 호백반점" />
+			</head><body></body></html>
+			""";
+
+		StoreNamePageParser.StorePageInfo info = parser.parse(StoreProvider.COUPANG_EATS, html).orElseThrow();
+
+		assertThat(info.storeName()).isEqualTo("호백반점");
+		assertThat(info.imageUrl()).isEqualTo("https://img.coupangeats.com/store/1.jpg");
+		assertThat(info.description()).isEqualTo("든든한 한 끼, 호백반점");
+	}
+
+	/** og:image·og:description은 가게명과 달리 없어도 실패가 아니다 — 카드에서 그 줄만 빠진다. */
+	@Test
+	@DisplayName("og:image·og:description이 없어도 가게명 추출은 실패하지 않고, 두 값은 null이다")
+	void imageAndDescriptionAreOptional() {
+		String html = meta("og:title", "[호백반점] ★ 4.9(6,127)");
+
+		StoreNamePageParser.StorePageInfo info = parser.parse(StoreProvider.COUPANG_EATS, html).orElseThrow();
+
+		assertThat(info.storeName()).isEqualTo("호백반점");
+		assertThat(info.imageUrl()).isNull();
+		assertThat(info.description()).isNull();
+	}
+
+	@Test
+	@DisplayName("og:description이 없으면 twitter:description으로 대체한다")
+	void descriptionFallsBackToTwitter() {
+		String html = """
+			<!DOCTYPE html><html><head>
+			<meta charset="utf-8">
+			<meta property="og:title" content="60계치킨-광주용봉점" />
+			<meta name="twitter:description" content="바삭한 치킨" />
+			</head><body></body></html>
+			""";
+
+		StoreNamePageParser.StorePageInfo info = parser.parse(StoreProvider.YOGIYO, html).orElseThrow();
+
+		assertThat(info.description()).isEqualTo("바삭한 치킨");
+	}
+
+	/** 가게명 검증(대괄호·GENERIC_TITLES)에 실패하면 og:image가 있어도 통째로 실패다 — 반쪽짜리 카드를 만들지 않는다. */
+	@Test
+	@DisplayName("가게명 추출이 실패하면 og:image가 있어도 전체가 실패로 처리된다")
+	void imagePresentDoesNotRescueFailedStoreName() {
+		String html = """
+			<!DOCTYPE html><html><head>
+			<meta charset="utf-8">
+			<meta property="og:title" content="쿠팡이츠 - 맛있는 음식 배달" />
+			<meta property="og:image" content="https://img.coupangeats.com/home.jpg" />
+			</head><body></body></html>
+			""";
+
+		assertThat(parser.parse(StoreProvider.COUPANG_EATS, html)).isEmpty();
 	}
 }

@@ -30,15 +30,14 @@ public class StoreNamePageParser {
 	 * og:title / twitter:title 추출. 속성 순서가 뒤집힌 경우까지 두 패턴으로 받는다 —
 	 * HTML 명세상 속성 순서는 자유이고, 앱마다 템플릿이 달라 한쪽만 두면 조용히 실패한다.
 	 */
-	private static final Pattern PROPERTY_FIRST = Pattern.compile(
-		"<meta[^>]+?(?:property|name)\\s*=\\s*[\"'](?:og:title|twitter:title)[\"'][^>]*?"
-			+ "content\\s*=\\s*[\"']([^\"']*)[\"']",
-		Pattern.CASE_INSENSITIVE);
+	private static final Pattern TITLE_PROPERTY_FIRST = metaPropertyFirst("og:title", "twitter:title");
+	private static final Pattern TITLE_CONTENT_FIRST = metaContentFirst("og:title", "twitter:title");
 
-	private static final Pattern CONTENT_FIRST = Pattern.compile(
-		"<meta[^>]+?content\\s*=\\s*[\"']([^\"']*)[\"'][^>]*?"
-			+ "(?:property|name)\\s*=\\s*[\"'](?:og:title|twitter:title)[\"']",
-		Pattern.CASE_INSENSITIVE);
+	/** 채팅 링크 미리보기 카드용. 가게명과 달리 배달앱별 후처리·오탐 검증이 필요 없다 — 있으면 쓰고 없으면 카드에서 뺀다. */
+	private static final Pattern IMAGE_PROPERTY_FIRST = metaPropertyFirst("og:image");
+	private static final Pattern IMAGE_CONTENT_FIRST = metaContentFirst("og:image");
+	private static final Pattern DESCRIPTION_PROPERTY_FIRST = metaPropertyFirst("og:description", "twitter:description");
+	private static final Pattern DESCRIPTION_CONTENT_FIRST = metaContentFirst("og:description", "twitter:description");
 
 	/** 쿠팡이츠 og:title 형식: {@code [가게명] ★ 4.9(6,127)}. 첫 대괄호 안이 가게명이다. */
 	private static final Pattern BRACKETED_NAME = Pattern.compile("^\\s*\\[([^\\]]+)\\]");
@@ -57,30 +56,59 @@ public class StoreNamePageParser {
 
 	/**
 	 * @param html 응답 본문. null이면(요기요 302처럼 본문이 없을 때) 빈 값을 돌려준다.
-	 * @return 검증을 통과한 가게명. 형식이 어긋나면 빈 값 — 추측해서 채우지 않는다.
+	 * @return 검증을 통과한 가게명 + 이미지·설명(있으면). 가게명 형식이 어긋나면 빈 값 —
+	 *         추측해서 채우지 않는다. 이미지·설명은 채팅 링크 미리보기 카드 전용이라 가게명만큼
+	 *         엄격하지 않다 — og 태그가 있으면 그대로 쓰고, 없으면 카드에서 그 줄만 뺀다.
 	 */
-	public Optional<String> parse(StoreProvider provider, String html) {
+	public Optional<StorePageInfo> parse(StoreProvider provider, String html) {
 		if (html == null || html.isBlank()) {
 			return Optional.empty();
 		}
 
-		return findTitle(html)
+		return findMeta(TITLE_PROPERTY_FIRST, TITLE_CONTENT_FIRST, html)
 			.map(StoreNamePageParser::unescapeHtml)
 			.flatMap(title -> extractName(provider, title))
 			.map(String::strip)
-			.filter(this::isPlausibleStoreName);
+			.filter(this::isPlausibleStoreName)
+			.map(name -> new StorePageInfo(
+				name,
+				findMeta(IMAGE_PROPERTY_FIRST, IMAGE_CONTENT_FIRST, html).orElse(null),
+				findMeta(DESCRIPTION_PROPERTY_FIRST, DESCRIPTION_CONTENT_FIRST, html)
+					.map(StoreNamePageParser::unescapeHtml)
+					.orElse(null)
+			));
 	}
 
-	private Optional<String> findTitle(String html) {
-		Matcher propertyFirst = PROPERTY_FIRST.matcher(html);
-		if (propertyFirst.find()) {
-			return Optional.of(propertyFirst.group(1));
+	/** 가게명. 이미지·설명은 없을 수 있어(og 태그 미제공) nullable이다. */
+	public record StorePageInfo(String storeName, String imageUrl, String description) {
+	}
+
+	private Optional<String> findMeta(Pattern propertyFirst, Pattern contentFirst, String html) {
+		Matcher m1 = propertyFirst.matcher(html);
+		if (m1.find()) {
+			return Optional.of(m1.group(1));
 		}
-		Matcher contentFirst = CONTENT_FIRST.matcher(html);
-		if (contentFirst.find()) {
-			return Optional.of(contentFirst.group(1));
+		Matcher m2 = contentFirst.matcher(html);
+		if (m2.find()) {
+			return Optional.of(m2.group(1));
 		}
 		return Optional.empty();
+	}
+
+	/** {@code tagNames} 중 먼저 매치되는 태그를 읽는다(예: og:title 없으면 twitter:title). */
+	private static Pattern metaPropertyFirst(String... tagNames) {
+		return Pattern.compile(
+			"<meta[^>]+?(?:property|name)\\s*=\\s*[\"'](?:" + String.join("|", tagNames) + ")[\"'][^>]*?"
+				+ "content\\s*=\\s*[\"']([^\"']*)[\"']",
+			Pattern.CASE_INSENSITIVE);
+	}
+
+	/** {@link #metaPropertyFirst}와 같지만 {@code content} 속성이 먼저 오는 경우(속성 순서는 자유다). */
+	private static Pattern metaContentFirst(String... tagNames) {
+		return Pattern.compile(
+			"<meta[^>]+?content\\s*=\\s*[\"']([^\"']*)[\"'][^>]*?"
+				+ "(?:property|name)\\s*=\\s*[\"'](?:" + String.join("|", tagNames) + ")[\"']",
+			Pattern.CASE_INSENSITIVE);
 	}
 
 	/**

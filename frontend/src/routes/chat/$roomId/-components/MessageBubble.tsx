@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils'
 import { ChatMessageResponseType } from '@/api/generated/model'
 import type { ChatMessageResponse } from '@/api/generated/model'
 
+import { StoreLinkPreviewCard } from './StoreLinkPreviewCard'
+
 interface MessageBubbleProps {
   message: ChatMessageResponse
   isMine: boolean
@@ -48,6 +50,7 @@ export function MessageBubble({ message, isMine, nickname, myNickname }: Message
   const time = formatTime(message.createdAt)
   const isImage = message.type === ChatMessageResponseType.IMAGE
   const isMenu = message.type === ChatMessageResponseType.SYSTEM_MENU
+  const isLink = message.type === ChatMessageResponseType.LINK
 
   return (
     <div className={cn('flex items-start gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}>
@@ -67,6 +70,8 @@ export function MessageBubble({ message, isMine, nickname, myNickname }: Message
               alt="전송된 사진"
               className="max-h-64 max-w-[70%] rounded-2xl object-cover"
             />
+          ) : isLink ? (
+            <StoreLinkPreviewCard url={message.content} isMine={isMine} />
           ) : isMenu ? (
             <div
               className={cn(

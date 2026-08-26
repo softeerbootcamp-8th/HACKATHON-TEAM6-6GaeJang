@@ -84,7 +84,15 @@ public class ChatMessage {
 		return new ChatMessage(chatRoom, MessageType.SYSTEM_MENU, senderId, menuContent, menuPrice, createdAt);
 	}
 
+	/**
+	 * content는 배달앱 가게 링크(URL) 그대로다. 제목·이미지 같은 미리보기 정보는 여기 담지 않는다
+	 * — 프론트가 렌더링 시점에 {@code POST /api/pots/store-name}으로 지연 조회한다.
+	 */
+	public static ChatMessage link(ChatRoom chatRoom, Long senderId, String storeUrl, OffsetDateTime createdAt) {
+		return new ChatMessage(chatRoom, MessageType.LINK, senderId, storeUrl, null, createdAt);
+	}
+
 	public enum MessageType {
-		TEXT, IMAGE, SYSTEM_JOIN, SYSTEM_MENU
+		TEXT, IMAGE, LINK, SYSTEM_JOIN, SYSTEM_MENU
 	}
 }

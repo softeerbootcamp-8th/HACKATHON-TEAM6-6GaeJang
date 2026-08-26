@@ -92,6 +92,9 @@ public class PotService {
 	 * <p>의존 방향은 팟 → 채팅 단방향으로 유지한다. 채팅이 팟을 부르면 순환 참조가 되어
 	 * 빈 생성 단계에서 실패한다. 채팅방에서 팟 정보가 필요하면 {@code Pot.chatRoomId}를
 	 * 거꾸로 타는 조회({@code GET /api/pots/by-chat-room/{chatRoomId}})를 쓴다.
+	 *
+	 * <p>방을 만든 직후 총대가 입력한 가게 링크를 총대 명의 말풍선으로 바로 올린다. 참여자가
+	 * 들어왔을 때 무슨 가게인지 스크롤을 올리지 않고도 바로 볼 수 있어야 해서다.
 	 */
 	@Transactional
 	public PotCreateResponse create(Long hostId, PotCreateRequest request) {
@@ -122,6 +125,7 @@ public class PotService {
 		ChatRoomResponse room = chatService.createRoom(
 			hostId, new ChatRoomCreateRequest(pot.getStoreName(), List.of(hostId), pot.getMeetingPlace()));
 		pot.linkChatRoom(room.id());
+		chatService.postStoreLinkMessage(room.id(), hostId, pot.getStoreUrl());
 
 		return PotCreateResponse.from(pot);
 	}

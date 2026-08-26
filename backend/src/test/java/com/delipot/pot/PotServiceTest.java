@@ -333,6 +333,18 @@ class PotServiceTest {
 		assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
 	}
 
+	/** 참여자가 방에 들어왔을 때 스크롤을 올리지 않고도 무슨 가게인지 바로 보여야 한다. */
+	@Test
+	@DisplayName("팟을 생성하면 총대 명의로 가게 링크 메시지가 채팅방에 바로 올라간다")
+	void createPostsStoreLinkMessage() {
+		givenSaveEchoes();
+
+		potService().create(HOST_ID, request(CURRENT.plusHours(1)));
+
+		verify(chatService).postStoreLinkMessage(
+			CHAT_ROOM_ID, HOST_ID, "https://web.coupangeats.com/share?storeId=781313");
+	}
+
 	@Test
 	@DisplayName("연결된 채팅방을 다시 붙이려 하면 거부한다 — 이전 방의 참여자·메시지가 고아가 된다")
 	void chatRoomCannotBeRelinked() {
@@ -352,6 +364,7 @@ class PotServiceTest {
 
 		verify(potMemberRepository, never()).save(any());
 		verify(chatService, never()).createRoom(any(), any());
+		verify(chatService, never()).postStoreLinkMessage(any(), any(), any());
 	}
 
 	// ---------- 참여 ----------
