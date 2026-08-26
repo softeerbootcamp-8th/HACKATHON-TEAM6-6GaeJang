@@ -205,6 +205,23 @@ public class ChatService {
 	}
 
 	/**
+	 * 배달팟 생성 시 배달팟 쪽에서 호출 — 총대가 입력한 가게 링크를 총대 명의 말풍선으로 올린다.
+	 *
+	 * <p>미리보기(제목·이미지·설명)는 여기서 가져오지 않는다. 방 생성 트랜잭션에 외부 HTTP 호출을
+	 * 얹으면 응답이 느려지고, 그 호출이 실패하면 팟 생성 자체가 막힌다. 그래서 content에는 URL만
+	 * 저장하고, 미리보기는 프론트가 방을 열람할 때 {@code POST /api/pots/store-name}으로 지연 조회한다.
+	 */
+	@Transactional
+	public ChatMessageResponse postStoreLinkMessage(Long roomId, Long senderId, String storeUrl) {
+		ChatRoom room = chatRoomRepository.findById(roomId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+		ChatMessage message = chatMessageRepository.save(
+			ChatMessage.link(room, senderId, storeUrl, OffsetDateTime.now(clock))
+		);
+		return saveAndBroadcast(roomId, message);
+	}
+
+	/**
 	 * 배달팟 참여 시 배달팟 쪽에서 호출 — 기존 방에 멤버 하나를 추가한다.
 	 * 이미 멤버면 조용히 무시한다(재시도 안전).
 	 */

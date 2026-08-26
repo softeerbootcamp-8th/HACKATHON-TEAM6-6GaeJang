@@ -9,18 +9,21 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.delipot.chat.ChatService;
 import com.delipot.chat.dto.ChatRoomCreateRequest;
@@ -69,6 +72,10 @@ class PotServiceTest {
 
 	/** 팟 하나를 총대 {@code HOST_ID}, 인원 {@code memberCount}/4, 상태 {@code status}로 만든다. */
 	private Pot pot(PotStatus status, int memberCount) {
+		return pot(status, memberCount, 4);
+	}
+
+	private Pot pot(PotStatus status, int memberCount, int capacity) {
 		Pot pot = Pot.builder()
 			.hostId(HOST_ID)
 			.title("역삼역 호백반점 같이 시켜요")
@@ -77,7 +84,7 @@ class PotServiceTest {
 			.meetingPlace("역삼 스타빌 1층 로비")
 			.latitude(new BigDecimal("37.5006000"))
 			.longitude(new BigDecimal("127.0366000"))
-			.capacity(4)
+			.capacity(capacity)
 			.minOrderAmount(20000)
 			.deadline(CURRENT.plusHours(1))
 			.bankName("카카오뱅크")
@@ -88,7 +95,7 @@ class PotServiceTest {
 		pot.linkChatRoom(CHAT_ROOM_ID);
 
 		for (int i = 1; i < memberCount; i++) {
-			pot.increaseMemberCount();
+			pot.join();
 		}
 		if (status == PotStatus.DONE) {
 			pot.complete();
@@ -326,6 +333,18 @@ class PotServiceTest {
 		assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
 	}
 
+	/** 참여자가 방에 들어왔을 때 스크롤을 올리지 않고도 무슨 가게인지 바로 보여야 한다. */
+	@Test
+	@DisplayName("팟을 생성하면 총대 명의로 가게 링크 메시지가 채팅방에 바로 올라간다")
+	void createPostsStoreLinkMessage() {
+		givenSaveEchoes();
+
+		potService().create(HOST_ID, request(CURRENT.plusHours(1)));
+
+		verify(chatService).postStoreLinkMessage(
+			CHAT_ROOM_ID, HOST_ID, "https://web.coupangeats.com/share?storeId=781313");
+	}
+
 	@Test
 	@DisplayName("연결된 채팅방을 다시 붙이려 하면 거부한다 — 이전 방의 참여자·메시지가 고아가 된다")
 	void chatRoomCannotBeRelinked() {
@@ -345,6 +364,7 @@ class PotServiceTest {
 
 		verify(potMemberRepository, never()).save(any());
 		verify(chatService, never()).createRoom(any(), any());
+		verify(chatService, never()).postStoreLinkMessage(any(), any(), any());
 	}
 
 	// ---------- 참여 ----------
@@ -401,6 +421,48 @@ class PotServiceTest {
 			.isEqualTo(ErrorCode.POT_ALREADY_JOINED);
 
 		assertThat(pot.getCurrentMemberCount()).isEqualTo(2);
+	}
+
+	/**
+	 * 같은 사람이 참여 버튼을 두 번 빠르게 누르면 두 요청이 모두 {@code exists = false}를 보고
+	 * 통과한다. 늦게 온 쪽은 INSERT에서 unique 제약에 걸리는데, 번역하지 않으면 사용자에게 500이 나간다.
+	 */
+	@Test
+	@DisplayName("동시 참여로 unique 제약에 걸린 쪽도 POT_ALREADY_JOINED로 응답한다 — 500이 아니다")
+	void concurrentDuplicateJoinBecomesAlreadyJoined() {
+		Pot pot = pot(PotStatus.ACTIVE, 2);
+		givenPotExists(pot);
+		given(potMemberRepository.existsByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(false);
+		given(potMemberRepository.save(any())).willThrow(duplicateMembershipViolation());
+
+		assertThatThrownBy(() -> potService().join(OTHER_ID, POT_ID, menuRequest()))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException)e).getErrorCode())
+			.isEqualTo(ErrorCode.POT_ALREADY_JOINED);
+	}
+
+	/** NOT NULL 위반 같은 코드 버그를 409로 포장하면 조용히 묻힌다 — 500으로 남아야 로그에서 발견된다. */
+	@Test
+	@DisplayName("중복 참여가 아닌 무결성 위반은 번역하지 않고 그대로 올려보낸다")
+	void otherIntegrityViolationIsNotTranslated() {
+		Pot pot = pot(PotStatus.ACTIVE, 2);
+		givenPotExists(pot);
+		given(potMemberRepository.existsByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(false);
+		given(potMemberRepository.save(any())).willThrow(constraintViolation("uk_something_else"));
+
+		assertThatThrownBy(() -> potService().join(OTHER_ID, POT_ID, menuRequest()))
+			.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	private DataIntegrityViolationException duplicateMembershipViolation() {
+		// 실제 DB는 제약 이름에 장식을 붙여 돌려준다 — H2: "PUBLIC.UK_...", MySQL: "pot_members.uk_...".
+		return constraintViolation("PUBLIC.UK_POT_MEMBERS_POT_MEMBER INDEX PUBLIC.UK_POT_MEMBERS_POT_MEMBER_INDEX_8");
+	}
+
+	private DataIntegrityViolationException constraintViolation(String constraintName) {
+		return new DataIntegrityViolationException(
+			"could not execute statement",
+			new ConstraintViolationException("중복 키", new SQLException("duplicate"), constraintName));
 	}
 
 	@Test
@@ -727,8 +789,7 @@ class PotServiceTest {
 	@Test
 	@DisplayName("값이 바뀌면 채팅방에 변경 공지가 남는다")
 	void expandPostsChatNotice() {
-		Pot pot = pot(PotStatus.ACTIVE, 3);
-		pot.expandRecruitment(2, pot.getDeadline());
+		Pot pot = pot(PotStatus.ACTIVE, 2, 2);
 		givenPotExists(pot);
 
 		potService().expandRecruitment(HOST_ID, POT_ID, expand(4, CURRENT.plusHours(4)));

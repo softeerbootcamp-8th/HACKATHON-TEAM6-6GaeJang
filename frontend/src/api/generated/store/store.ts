@@ -21,8 +21,8 @@ import type { ErrorType, BodyType } from '../../../lib/axios'
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1]
 
 /**
- * 쿠팡이츠·요기요 링크의 Open Graph 태그에서 가게명을 읽어온다. 배달의민족은 응답에 가게명이 없어 항상 실패한다(요청도 보내지 않는다). 추출 실패도 200이며 storeName이 null로 내려간다 — 화면은 손입력 상태를 유지하면 된다.
- * @summary 가게 링크에서 가게명 추출
+ * 쿠팡이츠·요기요 링크의 Open Graph 태그에서 가게명·이미지·설명을 읽어온다. 배달의민족은 응답에 가게명이 없어 항상 실패한다(요청도 보내지 않는다). 추출 실패도 200이며 storeName이 null로 내려간다 — 화면은 손입력 상태를 유지하거나 (채팅 링크 카드라면) 미리보기 없이 링크만 보여주면 된다.
+ * @summary 가게 링크에서 가게명·미리보기 추출
  */
 export const extractStoreName = (
   storeNameRequest: BodyType<StoreNameRequest>,
@@ -84,7 +84,7 @@ export type ExtractStoreNameMutationBody = BodyType<StoreNameRequest>
 export type ExtractStoreNameMutationError = ErrorType<unknown>
 
 /**
- * @summary 가게 링크에서 가게명 추출
+ * @summary 가게 링크에서 가게명·미리보기 추출
  */
 export const useExtractStoreName = <TError = ErrorType<unknown>, TContext = unknown>(
   options?: {

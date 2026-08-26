@@ -26,4 +26,14 @@ export interface StoreNameResponse {
    * @nullable
    */
   reason?: string | null
+  /**
+   * 채팅 링크 미리보기 카드용 이미지 URL. 없으면 null
+   * @nullable
+   */
+  imageUrl?: string | null
+  /**
+   * 채팅 링크 미리보기 카드용 설명. 없으면 null
+   * @nullable
+   */
+  description?: string | null
 }

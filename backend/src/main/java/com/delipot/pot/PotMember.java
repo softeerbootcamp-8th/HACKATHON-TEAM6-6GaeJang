@@ -28,12 +28,20 @@ import lombok.NoArgsConstructor;
 @Getter
 @Table(
 	name = "pot_members",
-	uniqueConstraints = @UniqueConstraint(name = "uk_pot_members_pot_member", columnNames = {"pot_id", "member_id"}),
+	uniqueConstraints = @UniqueConstraint(name = PotMember.UK_POT_MEMBER, columnNames = {"pot_id", "member_id"}),
 	// "내가 속한 팟 전부"가 홈 진입마다 실행되므로 member_id 단독 조회를 인덱스로 받친다.
 	indexes = @Index(name = "idx_pot_members_member", columnList = "member_id")
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PotMember {
+
+	/**
+	 * 중복 참여를 막는 unique 제약 이름.
+	 *
+	 * <p>상수로 뽑아 {@code @UniqueConstraint}와 {@link PotService}의 예외 번역이 같은 값을 쓰게 한다.
+	 * 문자열을 양쪽에 따로 적으면 이름을 바꿨을 때 번역이 조용히 안 걸려 중복 참여가 500으로 나간다.
+	 */
+	static final String UK_POT_MEMBER = "uk_pot_members_pot_member";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -60,7 +60,8 @@ jobs:
             --delete \
             --cache-control "no-cache,max-age=0,must-revalidate" \
             --exclude "assets/*" \
-            --exclude "index.html"
+            --exclude "index.html" \
+            --exclude "chat-images/*"
           aws s3 sync frontend/dist/assets "s3://${{ vars.S3_BUCKET }}/assets" \
             --delete \
             --cache-control "public,max-age=31536000,immutable"

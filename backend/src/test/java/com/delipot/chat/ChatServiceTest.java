@@ -370,4 +370,32 @@ class ChatServiceTest {
 		assertThat(response.senderId()).isEqualTo(1L);
 		assertThat(response.menuPrice()).isEqualTo(12000);
 	}
+
+	@Test
+	@DisplayName("가게 링크 메시지는 총대 senderId를 달고 LINK 타입으로, content엔 URL만 저장된다")
+	void postStoreLinkMessage_success() {
+		ChatRoom room = ChatRoom.create("방", OffsetDateTime.now(CLOCK));
+		setId(room, 10L);
+		given(chatRoomRepository.findById(10L)).willReturn(Optional.of(room));
+		given(chatMessageRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+		var response = chatService.postStoreLinkMessage(10L, 1L, "https://web.coupangeats.com/share?storeId=781313");
+
+		assertThat(response.type()).isEqualTo(ChatMessage.MessageType.LINK);
+		assertThat(response.senderId()).isEqualTo(1L);
+		assertThat(response.content()).isEqualTo("https://web.coupangeats.com/share?storeId=781313");
+		assertThat(response.menuPrice()).isNull();
+		verify(messagingTemplate).convertAndSend(eq("/topic/rooms/10"), eq(response));
+	}
+
+	@Test
+	@DisplayName("존재하지 않는 방에 가게 링크 메시지를 남기려 하면 실패한다")
+	void postStoreLinkMessage_roomNotFound() {
+		given(chatRoomRepository.findById(999L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> chatService.postStoreLinkMessage(999L, 1L, "https://web.coupangeats.com/x"))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException) e).getErrorCode())
+			.isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
+	}
 }

@@ -5,12 +5,12 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,12 +65,6 @@ public class PotService {
 	 */
 	private static final Limit MAX_RESULTS = Limit.of(100);
 
-	/**
-	 * JPQL {@code in ()}은 빈 컬렉션에서 문법 오류가 난다. 존재할 수 없는 id를 넣어
-	 * "제외할 게 없음"을 표현한다. 이걸 안 하면 참여 이력이 없는 신규 회원의 홈이 500으로 죽는다.
-	 */
-	private static final Long NO_SUCH_POT_ID = -1L;
-
 	private final PotRepository potRepository;
 	private final PotMemberRepository potMemberRepository;
 	private final MemberService memberService;
@@ -90,6 +84,9 @@ public class PotService {
 	 * <p>의존 방향은 팟 → 채팅 단방향으로 유지한다. 채팅이 팟을 부르면 순환 참조가 되어
 	 * 빈 생성 단계에서 실패한다. 채팅방에서 팟 정보가 필요하면 {@code Pot.chatRoomId}를
 	 * 거꾸로 타는 조회({@code GET /api/pots/by-chat-room/{chatRoomId}})를 쓴다.
+	 *
+	 * <p>방을 만든 직후 총대가 입력한 가게 링크를 총대 명의 말풍선으로 바로 올린다. 참여자가
+	 * 들어왔을 때 무슨 가게인지 스크롤을 올리지 않고도 바로 볼 수 있어야 해서다.
 	 */
 	@Transactional
 	public PotCreateResponse create(Long hostId, PotCreateRequest request) {
@@ -120,6 +117,7 @@ public class PotService {
 		ChatRoomResponse room = chatService.createRoom(
 			hostId, new ChatRoomCreateRequest(pot.getStoreName(), List.of(hostId), pot.getMeetingPlace()));
 		pot.linkChatRoom(room.id());
+		chatService.postStoreLinkMessage(room.id(), hostId, pot.getStoreUrl());
 
 		return PotCreateResponse.from(pot);
 	}
@@ -255,17 +253,11 @@ public class PotService {
 
 		String keyword = request.searchKeyword();
 
-		Set<Long> myPotIds = potMemberRepository.findByMemberId(memberId).stream()
-			.map(PotMember::getPotId)
-			.collect(Collectors.toSet());
-
-		List<Pot> myPots = myPotIds.isEmpty()
-			? List.of()
-			: potRepository.findMyLivePots(myPotIds, keyword);
+		List<Pot> myPots = potRepository.findMyLivePots(memberId, keyword);
 
 		List<Pot> hosted = myPots.stream().filter(pot -> pot.isHost(memberId)).toList();
 		List<Pot> joined = myPots.stream().filter(pot -> !pot.isHost(memberId)).toList();
-		List<Pot> others = findOthersNearby(me, myPotIds, keyword, now);
+		List<Pot> others = findOthersNearby(me, memberId, keyword, now);
 
 		// 세 섹션의 참여자를 한 번에 긁는다. 섹션별로 나눠 부르면 같은 쿼리가 세 번 나간다.
 		List<Pot> allPots = concatPots(hosted, joined, others);
@@ -291,6 +283,11 @@ public class PotService {
 	 * <p>정원 초과를 막는 건 두 겹이다. 여기서 {@link Pot#isFull()}로 먼저 걸러내고,
 	 * 두 사람이 같은 순간에 마지막 자리를 노렸을 때는 {@code Pot.version} 낙관적 락이 막는다
 	 * (한쪽 커밋이 실패하고 {@code CONFLICT}로 응답된다). 앞의 검사만 두면 둘 다 통과해 5/4가 된다.
+	 *
+	 * <p>중복 참여도 같은 구조다. {@code existsByPotIdAndMemberId}는 정상 요청에 친절한 에러를 주기
+	 * 위한 선검사이고, 같은 사람이 버튼을 두 번 빠르게 눌러 두 요청이 모두 통과한 경우의 정합성은
+	 * {@code pot_members}의 unique 제약이 보장한다. 그 위반을 {@link #saveMembership}이
+	 * {@code POT_ALREADY_JOINED}로 번역한다 — 번역이 없으면 사용자에게 500이 나간다.
 	 */
 	@Transactional
 	public PotJoinResponse join(Long memberId, Long potId, PotJoinRequest request) {
@@ -310,9 +307,8 @@ public class PotService {
 			throw new BusinessException(ErrorCode.POT_FULL);
 		}
 
-		potMemberRepository.save(
-			PotMember.join(potId, memberId, request.menuContent(), request.menuPrice(), now));
-		pot.increaseMemberCount();
+		saveMembership(PotMember.join(potId, memberId, request.menuContent(), request.menuPrice(), now));
+		pot.join();
 
 		String nickname = memberService.getById(memberId).getNickname();
 		chatService.addMember(pot.getChatRoomId(), memberId);
@@ -320,6 +316,55 @@ public class PotService {
 		chatService.postSystemMenuMessage(pot.getChatRoomId(), memberId, request.menuContent(), request.menuPrice());
 
 		return new PotJoinResponse(pot.getId(), pot.getChatRoomId(), pot.getCurrentMemberCount());
+	}
+
+	/**
+	 * 참여 기록 저장. unique 제약 위반만 {@code POT_ALREADY_JOINED}로 번역한다.
+	 *
+	 * <p>앞의 {@code existsByPotIdAndMemberId} 검사를 두고도 이게 필요한 이유는, 같은 사람이 참여
+	 * 버튼을 두 번 빠르게 눌렀을 때 두 요청이 모두 {@code exists = false}를 보고 통과하기 때문이다.
+	 * 그때 늦게 온 쪽의 INSERT가 {@code uk_pot_members_pot_member}에 걸린다. 선검사는 정상 요청에
+	 * 친절한 에러를 주기 위한 것이고, 동시 요청의 최종 정합성은 DB 제약이 보장한다 —
+	 * 번역이 없으면 그 결과가 사용자에게 500으로 나간다.
+	 *
+	 * <p>{@code saveAndFlush}가 아니라 {@code save}인 이유는 {@link PotMember}의 PK가
+	 * {@code IDENTITY}여서다. Hibernate가 생성된 PK를 받아야 엔티티를 영속 상태로 만들 수 있어
+	 * INSERT가 이 호출에서 바로 실행된다 — 별도 flush 없이 여기서 예외가 잡힌다.
+	 *
+	 * <p>예외를 잡은 뒤 DB 작업을 더 하지 않고 즉시 던지는 것이 중요하다. 제약 위반이 나면 Hibernate
+	 * 세션이 오염돼 이후 flush 동작을 보장할 수 없다.
+	 */
+	private void saveMembership(PotMember membership) {
+		try {
+			potMemberRepository.save(membership);
+		} catch (DataIntegrityViolationException e) {
+			if (isDuplicateMembership(e)) {
+				throw new BusinessException(ErrorCode.POT_ALREADY_JOINED);
+			}
+			throw e;
+		}
+	}
+
+	/**
+	 * 중복 참여 제약 위반인지. 제약 이름으로 좁혀 판정한다.
+	 *
+	 * <p>{@code DataIntegrityViolationException}을 전부 중복 참여로 넘기면 NOT NULL 위반 같은
+	 * 코드 버그까지 409로 포장돼 조용히 묻힌다. 그런 위반은 500으로 남아야 로그에서 발견된다.
+	 *
+	 * <p>제약 이름을 정확히 비교하지 않고 {@code contains}로 보는 이유는 DB마다 장식이 붙어서다 —
+	 * H2는 {@code PUBLIC.UK_POT_MEMBERS_POT_MEMBER INDEX ...}, MySQL은
+	 * {@code pot_members.uk_pot_members_pot_member}로 돌려준다. 대소문자도 갈려 무시하고 비교한다.
+	 */
+	private boolean isDuplicateMembership(DataIntegrityViolationException e) {
+		Throwable cause = e.getCause();
+		while (cause != null) {
+			if (cause instanceof ConstraintViolationException violation) {
+				String name = violation.getConstraintName();
+				return name != null && name.toLowerCase().contains(PotMember.UK_POT_MEMBER);
+			}
+			cause = cause.getCause();
+		}
+		return false;
 	}
 
 	/**
@@ -382,8 +427,7 @@ public class PotService {
 		}
 
 		String nickname = memberService.getById(memberId).getNickname();
-		pot.recordMemberLeft();
-		pot.decreaseMemberCount();
+		pot.leave();
 		chatService.removeMember(pot.getChatRoomId(), memberId);
 		chatService.postSystemNoticeMessage(pot.getChatRoomId(), nickname + "님이 채팅방을 나갔어요");
 	}
@@ -457,13 +501,11 @@ public class PotService {
 	}
 
 	/** 전체 배달팟 섹션. 사각형으로 후보를 줄인 뒤 구면 거리로 모서리에 걸친 팟을 걸러낸다. */
-	private List<Pot> findOthersNearby(Member me, Set<Long> myPotIds, String keyword, OffsetDateTime now) {
+	private List<Pot> findOthersNearby(Member me, Long memberId, String keyword, OffsetDateTime now) {
 		Geo.Box box = Geo.boxAround(me.getLatitude(), me.getLongitude(), SEARCH_RADIUS_METERS);
 
-		Collection<Long> excluded = myPotIds.isEmpty() ? List.of(NO_SUCH_POT_ID) : myPotIds;
-
 		List<Pot> candidates = potRepository.findOpenPotsInBox(
-			now, excluded,
+			now, memberId,
 			box.minLatitude(), box.maxLatitude(),
 			box.minLongitude(), box.maxLongitude(),
 			keyword, MAX_RESULTS

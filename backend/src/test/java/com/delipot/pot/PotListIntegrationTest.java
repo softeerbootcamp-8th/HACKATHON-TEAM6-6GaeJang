@@ -168,9 +168,9 @@ class PotListIntegrationTest {
 	@DisplayName("정원이 찬 팟은 전체 목록에서 빠진다 — 참여할 수 없는 카드다")
 	void excludesFullPots() {
 		Pot full = savePot(strangerId, "정원찬집", latitudeOffsetBy(50), CURRENT.plusHours(1));
-		full.increaseMemberCount();
-		full.increaseMemberCount();
-		full.increaseMemberCount();
+		full.join();
+		full.join();
+		full.join();
 		potRepository.saveAndFlush(full);
 
 		savePot(strangerId, "여유있는집", latitudeOffsetBy(50), CURRENT.plusHours(2));
@@ -205,7 +205,7 @@ class PotListIntegrationTest {
 
 		Pot joinedPot = savePot(strangerId, "참여한집", latitudeOffsetBy(50), CURRENT.plusHours(2));
 		potMemberRepository.save(PotMember.join(joinedPot.getId(), meId, "허니콤보", 12000, CURRENT));
-		joinedPot.increaseMemberCount();
+		joinedPot.join();
 		potRepository.saveAndFlush(joinedPot);
 
 		savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(3));
@@ -226,6 +226,46 @@ class PotListIntegrationTest {
 
 		assertThat(storeNames(response.hosted())).containsExactly("내가연집");
 		assertThat(response.all()).isEmpty();
+	}
+
+	/**
+	 * 참여 이력을 자바로 모아 {@code in} 절에 넘기던 구조에서는 이력이 비면 {@code in ()}이 되어
+	 * 문법 오류가 났고, 그걸 피하려고 더미 id를 끼워 넣고 있었다. {@code exists}로 바꾼 뒤에도
+	 * 신규 회원의 홈이 정상 동작하는지 고정한다.
+	 */
+	@Test
+	@DisplayName("참여 이력이 하나도 없는 회원의 홈도 정상 동작한다")
+	void newMemberWithNoHistorySeesOnlyAllSection() {
+		savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+
+		PotListResponse response = search(null);
+
+		assertThat(response.hosted()).isEmpty();
+		assertThat(response.joined()).isEmpty();
+		assertThat(storeNames(response.all())).containsExactly("남의집");
+	}
+
+	/**
+	 * {@code exists}는 완료 여부를 보지 않으므로, DONE 조건이 빠지면 과거 팟이 내 섹션에 되살아난다.
+	 * 참여 이력만 남은 회원이 그 회귀를 잡는다.
+	 */
+	@Test
+	@DisplayName("완료된 팟에만 참여했던 회원의 내 섹션은 비어 있다")
+	void doneOnlyHistoryDoesNotResurrectMySections() {
+		Pot donePot = savePot(strangerId, "끝난집", latitudeOffsetBy(50), CURRENT.plusHours(1));
+		potMemberRepository.save(PotMember.join(donePot.getId(), meId, "허니콤보", 12000, CURRENT));
+		donePot.join();
+		donePot.complete();
+		potRepository.saveAndFlush(donePot);
+
+		savePot(strangerId, "남의집", latitudeOffsetBy(50), CURRENT.plusHours(2));
+
+		PotListResponse response = search(null);
+
+		assertThat(response.hosted()).isEmpty();
+		assertThat(response.joined()).isEmpty();
+		// 완료된 팟은 전체 목록에도 안 뜬다 — ACTIVE 조건에서 걸린다.
+		assertThat(storeNames(response.all())).containsExactly("남의집");
 	}
 
 	@Test
