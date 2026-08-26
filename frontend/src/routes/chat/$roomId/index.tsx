@@ -128,66 +128,70 @@ function ChatRoomPage() {
   const subtitle = [memberCount != null ? `멤버 ${memberCount}명` : null, location].filter(Boolean).join(' · ')
 
   return (
-    <main aria-label={roomName} className="bg-bg mx-auto flex h-dvh max-w-[393px] flex-col shadow-xl">
-      <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
-            ←
-          </Link>
-          <div className="min-w-0">
-            <h1 className="truncate font-semibold">{roomName}</h1>
-            {subtitle && <p className="text-muted-fg truncate text-xs">{subtitle}</p>}
+    <main aria-label={roomName} className="app-shell">
+      <div className="flex h-full flex-col">
+        <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Link to="/chat" className="text-muted-fg hover:text-fg text-sm">
+              ←
+            </Link>
+            <div className="min-w-0">
+              <h1 className="truncate font-semibold">{roomName}</h1>
+              {subtitle && <p className="text-muted-fg truncate text-xs">{subtitle}</p>}
+            </div>
           </div>
-        </div>
-        {potData && (!potData.isHost || potData.status === PotDetailResponseStatus.DONE) && (
-          <button
-            type="button"
-            onClick={handleLeave}
-            disabled={leavePot.isPending}
-            aria-label="배달팟 나가기"
-            className="text-muted-fg hover:text-down shrink-0 disabled:opacity-50"
-          >
-            <LogOut className="size-5" />
-          </button>
-        )}
-      </header>
+          {potData && (!potData.isHost || potData.status === PotDetailResponseStatus.DONE) && (
+            <button
+              type="button"
+              onClick={handleLeave}
+              disabled={leavePot.isPending}
+              aria-label="배달팟 나가기"
+              className="text-muted-fg hover:text-down shrink-0 disabled:opacity-50"
+            >
+              <LogOut className="size-5" />
+            </button>
+          )}
+        </header>
 
-      {potData?.account && <PotAccountBanner account={potData.account} />}
+        {potData?.account && <PotAccountBanner account={potData.account} />}
 
-      {(error ?? uploadImage.error?.message ?? leavePot.error?.message) && (
-        <p role="alert" className="text-down bg-muted px-4 py-2 text-center text-xs">
-          {error ?? uploadImage.error?.message ?? leavePot.error?.message}
-        </p>
-      )}
-
-      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
-        {history.isPending ? (
-          <p className="text-muted-fg text-center text-sm">불러오는 중…</p>
-        ) : history.isError ? (
-          <p role="alert" className="text-down text-center text-sm">
-            {history.error.message}
+        {/* 사진 업로드 실패(용량 제한 등으로 인프라 단에서 403이 나는 경우 포함)는 기획 요구사항에 따라
+            에러 문구를 노출하지 않는다 — 사용자는 그냥 사진이 전송되지 않은 채로 다시 시도하면 된다. */}
+        {(error ?? leavePot.error?.message) && (
+          <p role="alert" className="text-down bg-muted px-4 py-2 text-center text-xs">
+            {error ?? leavePot.error?.message}
           </p>
-        ) : (
-          messages.map((message, index) => {
-            const previous = messages[index - 1]
-            const showDivider = !sameDay(message.createdAt, previous?.createdAt)
-            return (
-              <Fragment key={message.id}>
-                {showDivider && message.createdAt && <DateDivider iso={message.createdAt} />}
-                <MessageBubble
-                  message={message}
-                  isMine={message.senderId === member.id}
-                  nickname={message.senderId != null ? nicknameById.get(message.senderId) : undefined}
-                  myNickname={myNickname}
-                />
-              </Fragment>
-            )
-          })
         )}
-        <div ref={bottomRef} />
-      </div>
 
-      <MessageComposer disabled={!connected} onSend={sendMessage} onSendImage={handleSendImage} />
+        <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+          {history.isPending ? (
+            <p className="text-muted-fg text-center text-sm">불러오는 중…</p>
+          ) : history.isError ? (
+            <p role="alert" className="text-down text-center text-sm">
+              {history.error.message}
+            </p>
+          ) : (
+            messages.map((message, index) => {
+              const previous = messages[index - 1]
+              const showDivider = !sameDay(message.createdAt, previous?.createdAt)
+              return (
+                <Fragment key={message.id}>
+                  {showDivider && message.createdAt && <DateDivider iso={message.createdAt} />}
+                  <MessageBubble
+                    message={message}
+                    isMine={message.senderId === member.id}
+                    nickname={message.senderId != null ? nicknameById.get(message.senderId) : undefined}
+                    myNickname={myNickname}
+                  />
+                </Fragment>
+              )
+            })
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        <MessageComposer disabled={!connected} onSend={sendMessage} onSendImage={handleSendImage} />
+      </div>
     </main>
   )
 }

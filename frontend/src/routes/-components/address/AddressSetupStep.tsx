@@ -227,7 +227,7 @@ export function AddressSetupStep({
       </header>
 
       {/* 검색바 (State I, J, K) */}
-      <div className="border-b border-border px-6 pt-6 pb-4">
+      <div className="px-6 pt-6 pb-4">
         <form onSubmit={handleSearchSubmit} className="relative flex items-center">
           <input
             ref={searchInputRef}
@@ -263,6 +263,8 @@ export function AddressSetupStep({
           </div>
         </form>
       </div>
+
+      <div className="bg-surface h-2" />
 
       <div className="flex flex-1 flex-col px-6 pt-4 pb-6">
         {/* 현재 위치로 주소 찾기 버튼 (State J) */}

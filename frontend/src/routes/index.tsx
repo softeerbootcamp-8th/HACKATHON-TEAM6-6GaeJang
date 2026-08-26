@@ -1,30 +1,49 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Plus, Search, X } from 'lucide-react'
 
 import type { PotSummaryResponse } from '@/api/generated/model'
 import { getMeQueryKey, useMe, useUpdateProfile } from '@/api/generated/auth/auth'
-import { getGetPotsQueryKey, useCompletePot, useGetPots } from '@/api/generated/pot/pot'
+import {
+  getGetPotQueryKey,
+  getGetPotsQueryKey,
+  useCompletePot,
+  useGetPots,
+} from '@/api/generated/pot/pot'
 import { formatLocalAddress } from '@/lib/addressFormatter'
 import { requireAuth } from '@/lib/authGuard'
 
 import { useDebouncedValue } from './-hooks/useDebouncedValue'
 import { AddressSetupStep } from './-components/address/AddressSetupStep'
 import type { SelectedLocation } from './-components/address/KakaoMapPicker'
+import { AppLogoHeader } from './-components/AppLogoHeader'
 import { MobileBottomNav } from './-components/MobileBottomNav'
 import { PotCard } from './-components/PotCard'
 import { PotDetailSheet } from './-components/PotDetailSheet'
+import { PullToRefreshIndicator, usePullToRefresh } from './-components/PullToRefresh'
 
 export const Route = createFileRoute('/')({
-  beforeLoad: ({ context }) => requireAuth(context.queryClient),
+  beforeLoad: async ({ context, search }) => {
+    await requireAuth(context.queryClient)
+    if (search.openPotID && !search.openPotId) {
+      throw redirect({
+        to: '/',
+        search: { openPotId: search.openPotID },
+        replace: true,
+      })
+    }
+  },
   validateSearch: (
     search: Record<string, unknown>,
-  ): { openPotId?: number; revealPotId?: number } => {
+  ): { openPotId?: number; openPotID?: number; revealPotId?: number } => {
     const openPotId = Number(search.openPotId)
+    const legacyOpenPotId = Number(search.openPotID)
     const revealPotId = Number(search.revealPotId)
 
     if (Number.isSafeInteger(openPotId) && openPotId > 0) return { openPotId }
+    if (Number.isSafeInteger(legacyOpenPotId) && legacyOpenPotId > 0)
+      return { openPotID: legacyOpenPotId }
     if (Number.isSafeInteger(revealPotId) && revealPotId > 0) return { revealPotId }
     return {}
   },
@@ -33,7 +52,8 @@ export const Route = createFileRoute('/')({
 
 function HomePage() {
   const navigate = useNavigate()
-  const { openPotId, revealPotId } = Route.useSearch()
+  const { openPotId: canonicalOpenPotId, openPotID, revealPotId } = Route.useSearch()
+  const openPotId = canonicalOpenPotId ?? openPotID
   const [keyword, setKeyword] = useState('')
   const [isComposingKeyword, setIsComposingKeyword] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -59,6 +79,15 @@ function HomePage() {
   }, [])
 
   const queryClient = useQueryClient()
+  const refreshPage = useCallback(
+    () => queryClient.refetchQueries({ type: 'active' }),
+    [queryClient],
+  )
+  const {
+    scrollRef: pullToRefreshRef,
+    pullDistance,
+    isRefreshing,
+  } = usePullToRefresh({ onRefresh: refreshPage })
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
   const debouncedKeyword = useDebouncedValue(keyword.trim(), 300, !isComposingKeyword)
@@ -74,7 +103,26 @@ function HomePage() {
   )
   const complete = useCompletePot({
     mutation: {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetPotsQueryKey() }),
+      onSuccess: async (_, { potId }) => {
+        await Promise.all([
+          // 완료 팟 제거와 서버가 확정한 총대 횟수를 같은 성공 흐름에서 다시 받는다.
+          queryClient.invalidateQueries({ queryKey: getGetPotsQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getMeQueryKey() }),
+          queryClient.invalidateQueries({ queryKey: getGetPotQueryKey(potId) }),
+          // 채팅방 역조회·메시지는 roomId를 여기서 모르므로 관련 경로를 모두 stale 처리한다.
+          // 현재 화면에 있으면 즉시 refetch되고, 캐시에만 있으면 다음 진입 때 새로 조회된다.
+          queryClient.invalidateQueries({
+            predicate: ({ queryKey }) => {
+              const path = queryKey[0]
+              return (
+                typeof path === 'string' &&
+                (path.startsWith('/api/pots/by-chat-room/') ||
+                  path.startsWith('/api/chat/rooms'))
+              )
+            },
+          }),
+        ])
+      },
       onError: (error) => setActionError(error.message),
     },
   })
@@ -146,6 +194,7 @@ function HomePage() {
     <main aria-label="배달팟 홈" className="app-shell">
       <div className="relative flex h-full flex-col">
         <header className="bg-bg z-20 shrink-0 px-5 pb-2">
+          <AppLogoHeader compact />
           <button
             type="button"
             onClick={openAddressPicker}
@@ -187,7 +236,11 @@ function HomePage() {
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-32">
+        <div
+          ref={pullToRefreshRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 pb-32"
+        >
+          <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
           <p className="text-muted-fg pt-3 text-center text-xs">내 주변 300m 내의 배달팟이에요</p>
 
           {!member && !me.isPending ? (
@@ -258,7 +311,13 @@ function HomePage() {
         {openPotId != null && (
           <PotDetailSheet
             potId={openPotId}
-            onClose={() => navigate({ to: '/', search: {}, replace: true })}
+            onClose={() =>
+              navigate({
+                to: '/',
+                search: () => ({}),
+                replace: true,
+              })
+            }
           />
         )}
       </div>

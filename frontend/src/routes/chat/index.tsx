@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useCallback, type ReactNode } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 
@@ -8,7 +8,9 @@ import { PotDetailResponseStatus } from '@/api/generated/model'
 import { getGetPotByChatRoomQueryOptions } from '@/api/generated/pot/pot'
 import { requireAuth } from '@/lib/authGuard'
 
+import { AppLogoHeader } from '../-components/AppLogoHeader'
 import { MobileBottomNav } from '../-components/MobileBottomNav'
+import { PullToRefreshIndicator, usePullToRefresh } from '../-components/PullToRefresh'
 import { ChatRoomListItem } from './-components/ChatRoomListItem'
 import { useChatRoomsSocket } from './-hooks/useChatRoomsSocket'
 
@@ -23,6 +25,15 @@ function ChatRoomListPage() {
   const member = me.isError ? undefined : me.data?.data
 
   const queryClient = useQueryClient()
+  const refreshPage = useCallback(
+    () => queryClient.refetchQueries({ type: 'active' }),
+    [queryClient],
+  )
+  const {
+    scrollRef: pullToRefreshRef,
+    pullDistance,
+    isRefreshing,
+  } = usePullToRefresh({ onRefresh: refreshPage })
   const rooms = useGetMyRooms({ query: { enabled: !!member } })
   const roomIds = rooms.data?.data?.map((room) => room.roomId).filter((id): id is number => id != null) ?? []
 
@@ -43,12 +54,31 @@ function ChatRoomListPage() {
     roomIds.filter((_, index) => potQueries[index]?.data?.data?.status === PotDetailResponseStatus.DONE),
   )
 
+  // 1순위: 활성화(진행 중) 방이 종료된 방보다 위. 2순위: 각 그룹 안에서 마지막 메시지가 최신인 방이 위
+  // (메시지가 아예 없는 방은 그 그룹 맨 아래).
+  const sortedRooms = [...(rooms.data?.data ?? [])].sort((a, b) => {
+    const aDone = a.roomId != null && doneRoomIds.has(a.roomId)
+    const bDone = b.roomId != null && doneRoomIds.has(b.roomId)
+    if (aDone !== bDone) return aDone ? 1 : -1
+
+    const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : -Infinity
+    const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : -Infinity
+    return bTime - aTime
+  })
+
   return (
     <main aria-label="채팅방 목록" className="app-shell">
       <div className="relative h-full">
-        <div className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32">
-          <header className="bg-bg sticky top-0 z-20 -mx-5 flex h-14 items-center px-5">
-            <h1 className="text-lg font-bold">채팅</h1>
+        <div
+          ref={pullToRefreshRef}
+          className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32"
+        >
+          <header className="bg-bg sticky top-0 z-20 -mx-5 px-5 pb-2">
+            <AppLogoHeader compact />
+            <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
+            <div className="flex h-14 items-center">
+              <h1 className="text-lg font-bold">채팅</h1>
+            </div>
           </header>
 
           {me.isPending ? (
@@ -70,7 +100,7 @@ function ChatRoomListPage() {
             <StateMessage>참여 중인 채팅방이 없어요</StateMessage>
           ) : (
             <ul className="mt-2 flex flex-col">
-              {rooms.data?.data?.map((room) => (
+              {sortedRooms.map((room) => (
                 <li key={room.roomId}>
                   <ChatRoomListItem room={room} isDone={room.roomId != null && doneRoomIds.has(room.roomId)} />
                 </li>

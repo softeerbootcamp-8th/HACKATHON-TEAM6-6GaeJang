@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
@@ -7,7 +7,9 @@ import { useLogout, useMe, useWithdraw } from '@/api/generated/auth/auth'
 import { requireAuth } from '@/lib/authGuard'
 import { clearSessionQueries } from '@/lib/sessionCache'
 
+import { AppLogoHeader } from '../-components/AppLogoHeader'
 import { MobileBottomNav } from '../-components/MobileBottomNav'
+import { PullToRefreshIndicator, usePullToRefresh } from '../-components/PullToRefresh'
 import { ConfirmDialog } from './-components/ConfirmDialog'
 
 export const Route = createFileRoute('/my/')({
@@ -20,12 +22,28 @@ const APP_VERSION = 'v1.0.0'
 function MyPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const refreshPage = useCallback(
+    () => queryClient.refetchQueries({ type: 'active' }),
+    [queryClient],
+  )
+  const {
+    scrollRef: pullToRefreshRef,
+    pullDistance,
+    isRefreshing,
+  } = usePullToRefresh({ onRefresh: refreshPage })
   const me = useMe({ query: { retry: false } })
   const member = me.isError ? undefined : me.data?.data
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false)
   const [withdrawError, setWithdrawError] = useState('')
+
+  useEffect(() => {
+    if (!withdrawError) return
+
+    const timer = window.setTimeout(() => setWithdrawError(''), 2350)
+    return () => window.clearTimeout(timer)
+  }, [withdrawError])
 
   const goToLogin = async () => {
     await clearSessionQueries(queryClient)
@@ -49,9 +67,16 @@ function MyPage() {
   return (
     <main aria-label="마이페이지" className="app-shell">
       <div className="relative h-full">
-        <div className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32">
-          <header className="flex h-14 items-center">
-            <h1 className="text-xl font-bold">마이페이지</h1>
+        <div
+          ref={pullToRefreshRef}
+          className="h-full overflow-y-auto overscroll-y-contain px-5 pb-32"
+        >
+          <header>
+            <AppLogoHeader compact />
+            <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
+            <div className="flex h-14 items-center">
+              <h1 className="text-xl font-bold">마이페이지</h1>
+            </div>
           </header>
 
           {me.isPending ? (
@@ -82,8 +107,10 @@ function MyPage() {
                 </div>
               </div>
 
-              <nav aria-label="마이페이지 메뉴" className="mt-6">
-                <ul className="divide-border divide-y border-t border-b">
+              <div className="bg-surface -mx-5 mt-6 h-2" />
+
+              <nav aria-label="마이페이지 메뉴">
+                <ul className="divide-border divide-y">
                   <li>
                     <Link
                       to="/my/edit"
@@ -111,7 +138,12 @@ function MyPage() {
                       <ChevronRight className="text-muted-fg/50 size-4" />
                     </span>
                   </li>
-                  <li className="border-t">
+                </ul>
+
+                <div className="bg-surface -mx-5 h-2" />
+
+                <ul className="divide-border divide-y">
+                  <li>
                     <button
                       type="button"
                       onClick={() => setShowLogoutConfirm(true)}
@@ -134,19 +166,26 @@ function MyPage() {
                 </ul>
               </nav>
 
-              <div className="mt-6 flex items-center justify-between text-sm">
+              <div className="bg-surface -mx-5 mb-6 h-2" />
+
+              <div className="flex items-center justify-between text-sm">
                 <span>앱 버전정보</span>
                 <span className="text-muted-fg">{APP_VERSION}</span>
               </div>
 
-              {withdrawError && (
-                <p role="alert" className="text-down mt-6 text-sm">
-                  {withdrawError}
-                </p>
-              )}
             </>
           )}
         </div>
+
+        {withdrawError && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="withdraw-toast bg-fg text-bg absolute inset-x-5 bottom-[96px] z-40 rounded-xl px-4 py-3 text-center text-sm font-medium shadow-lg"
+          >
+            {withdrawError}
+          </div>
+        )}
 
         <MobileBottomNav active="my" />
       </div>

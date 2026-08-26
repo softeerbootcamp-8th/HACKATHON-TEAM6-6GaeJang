@@ -9,11 +9,12 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
 
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- 고정 URL로 1년 캐시되던 이전 manifest를 피하도록 설치 메타데이터 URL을 버전 처리한다. -->
+    <link rel="manifest" href="/manifest-v2.webmanifest" />
     <meta name="theme-color" content="#F64B00" />
 
     <!-- iOS는 manifest 설치 트리거를 지원하지 않아 별도 메타 태그로 홈 화면 추가를 지원한다 -->
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v2.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Delipot" />
