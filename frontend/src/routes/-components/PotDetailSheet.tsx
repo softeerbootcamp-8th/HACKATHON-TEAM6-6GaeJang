@@ -290,14 +290,14 @@ function CopyAddressButton({ address }: { address: string }) {
         onClick={() => void copyAddress()}
         disabled={!address}
         aria-label="만날 장소 주소 복사"
-        className="bg-bg text-muted-fg hover:text-fg flex h-8 items-center gap-1 rounded-lg border px-2 text-xs font-semibold disabled:opacity-40"
+        title={status === 'copied' ? '복사됨' : '주소 복사'}
+        className="text-muted-fg hover:bg-muted/70 hover:text-fg active:bg-muted flex size-8 items-center justify-center rounded-md transition-colors disabled:opacity-40"
       >
         {status === 'copied' ? (
-          <Check className="text-up size-3.5" />
+          <Check className="text-up size-4" />
         ) : (
-          <Copy className="size-3.5" />
+          <Copy className="size-4" />
         )}
-        {status === 'copied' ? '복사됨' : '복사'}
       </button>
       <span className="sr-only" aria-live="polite">
         {status === 'copied'
