@@ -96,6 +96,16 @@ class AuthIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("비밀번호에 한글/공백이 섞이면 가입이 400으로 막힌다")
+	void signupRejectsInvalidPasswordCharacters() throws Exception {
+		mockMvc.perform(post("/api/auth/signup")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(signupBody("01011110099", "비밀번호123", "잘못된비번", "서울", false)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+	}
+
+	@Test
 	@DisplayName("닉네임 중복확인 / 번호 중복확인 / 번호 중복 가입")
 	void duplicates() throws Exception {
 		signup("01011110005", "중복이", false);

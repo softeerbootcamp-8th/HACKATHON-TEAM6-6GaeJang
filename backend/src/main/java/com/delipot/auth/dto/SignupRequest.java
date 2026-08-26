@@ -15,6 +15,7 @@ public record SignupRequest(
 
 	@NotBlank
 	@Size(min = 1, max = 64, message = "비밀번호는 1자 이상 64자 이하입니다.")
+	@Pattern(regexp = "^[!-~]*$", message = "비밀번호는 영어 대소문자, 숫자, 특수문자만 사용할 수 있습니다.")
 	String password,
 
 	@NotBlank
