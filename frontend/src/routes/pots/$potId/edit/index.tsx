@@ -53,12 +53,13 @@ function EditPotPage() {
   }
 
   const backToPot = () => navigate({ to: '/', search: { openPotId: potId } })
+  const revealUpdatedPot = () => navigate({ to: '/', search: { revealPotId: potId } })
 
   const expandRecruitment = useExpandRecruitment({
     mutation: {
       onSuccess: () => {
         invalidatePot()
-        backToPot()
+        revealUpdatedPot()
       },
       onError: (mutationError) => setErrorMessage(mutationError.message),
     },
@@ -68,7 +69,7 @@ function EditPotPage() {
     mutation: {
       onSuccess: () => {
         invalidatePot()
-        backToPot()
+        revealUpdatedPot()
       },
       onError: (mutationError) => setErrorMessage(mutationError.message),
     },

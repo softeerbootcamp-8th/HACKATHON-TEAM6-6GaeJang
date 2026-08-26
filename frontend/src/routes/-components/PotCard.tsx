@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { UsersRound } from 'lucide-react'
 
 import type { PotSummaryResponse } from '@/api/generated/model'
-import { formatDistrictAddress } from '@/lib/addressFormatter'
+import { formatLocalAddress } from '@/lib/addressFormatter'
 import { formatDeadline, hasDeadlinePassed } from '@/routes/pots/-utils/formatDeadline'
 
 type PotCardProps = {
@@ -38,7 +38,7 @@ export function PotCard({ pot, onOpen, onComplete, isCompleting }: PotCardProps)
         <div className="mt-5 flex items-center justify-between gap-3">
           <p className="min-w-0 text-sm">
             <span className="text-muted-fg mr-3">만날 장소</span>
-            <span className="font-semibold">{formatDistrictAddress(pot.meetingPlace)}</span>
+            <span className="font-semibold">{formatLocalAddress(pot.meetingPlace)}</span>
           </p>
           <MemberStack members={pot.members} />
         </div>

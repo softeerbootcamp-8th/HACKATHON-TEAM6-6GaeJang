@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Plus, Search, X } from 'lucide-react'
@@ -18,16 +18,22 @@ import { PotDetailSheet } from './-components/PotDetailSheet'
 
 export const Route = createFileRoute('/')({
   beforeLoad: ({ context }) => requireAuth(context.queryClient),
-  validateSearch: (search: Record<string, unknown>): { openPotId?: number } => {
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { openPotId?: number; revealPotId?: number } => {
     const openPotId = Number(search.openPotId)
-    return Number.isSafeInteger(openPotId) && openPotId > 0 ? { openPotId } : {}
+    const revealPotId = Number(search.revealPotId)
+
+    if (Number.isSafeInteger(openPotId) && openPotId > 0) return { openPotId }
+    if (Number.isSafeInteger(revealPotId) && revealPotId > 0) return { revealPotId }
+    return {}
   },
   component: HomePage,
 })
 
 function HomePage() {
   const navigate = useNavigate()
-  const { openPotId } = Route.useSearch()
+  const { openPotId, revealPotId } = Route.useSearch()
   const [keyword, setKeyword] = useState('')
   const [isComposingKeyword, setIsComposingKeyword] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -83,6 +89,24 @@ function HomePage() {
     })
   }
 
+  const data = pots.data?.data
+  const hosted = data?.hosted ?? []
+  const joined = data?.joined ?? []
+  const all = data?.all ?? []
+
+  // 저장 직후 갱신된 카드를 300ms 동안 보여준 다음 상세 시트를 연다. 새 카드가 목록에 생겼다는
+  // 맥락을 인지할 수 있으면서도 다른 조작을 시작하기에는 짧은 간격이다.
+  const revealPotIsVisible = hosted.some((pot) => pot.potId === revealPotId)
+  useEffect(() => {
+    if (!revealPotId || pots.isFetching || !revealPotIsVisible) return
+
+    const timer = window.setTimeout(() => {
+      void navigate({ to: '/', search: { openPotId: revealPotId }, replace: true })
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [navigate, pots.isFetching, revealPotId, revealPotIsVisible])
+
   if (addressPickerOpen) {
     return (
       <AddressSetupStep
@@ -95,11 +119,6 @@ function HomePage() {
     )
   }
 
-  const data = pots.data?.data
-  const hosted = data?.hosted ?? []
-  const joined = data?.joined ?? []
-  const all = data?.all ?? []
-
   return (
     <main aria-label="배달팟 홈" className="app-shell">
       <div className="relative flex h-full flex-col">
@@ -110,9 +129,8 @@ function HomePage() {
             aria-label="내 위치 변경"
             className="flex items-center gap-2 py-2 text-[15px] font-bold"
           >
-            {formatLocalAddress(
-              member?.roadAddress || member?.address || member?.jibunAddress,
-            ) || '주소를 설정해주세요'}
+            {formatLocalAddress(member?.roadAddress || member?.address || member?.jibunAddress) ||
+              '주소를 설정해주세요'}
             <ChevronDown className="fill-fg size-4" />
           </button>
           <div className="bg-surface text-muted-fg mt-2 flex h-12 items-center gap-3 rounded-xl px-3">

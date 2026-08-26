@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { getMeQueryKey, useSignup } from '@/api/generated/auth/auth'
 import { redirectIfAuthenticated } from '@/lib/authGuard'
 import { unformatPhoneNumber } from '@/lib/phoneFormatter'
+import { clearSessionQueries } from '@/lib/sessionCache'
 import { AccountInfoStep } from './-components/AccountInfoStep'
 import { AddressSetupStep } from '../-components/address/AddressSetupStep'
 import type { SelectedLocation } from '../-components/address/KakaoMapPicker'
@@ -49,9 +50,10 @@ function OnboardingPage() {
       // 가입 성공 = 세션 쿠키 발급 완료 → 홈(/)으로 이동.
       // me 쿼리 캐시를 갱신하지 않으면 로그아웃 이력이 있는 세션에서 '/'의 requireAuth 가드가
       // 캐시된 error 상태를 보고 미인증으로 오판해 도로 튕겨낸다.
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
+        await clearSessionQueries(queryClient)
         queryClient.setQueryData(getMeQueryKey(), data)
-        void navigate({ to: '/' })
+        await navigate({ to: '/' })
       },
     },
   })
