@@ -61,7 +61,7 @@
 
   <!-- AWS Cloud outer -->
   <rect x="40" y="160" width="570" height="730" rx="14" fill="#fffaf3" stroke="#ff9900" stroke-width="2" stroke-dasharray="8,5"/>
-  <text x="350" y="188" font-size="13" font-weight="700" fill="#b06a00">AWS Cloud (ap-northeast-2)</text>
+  <text x="590" y="188" text-anchor="end" font-size="13" font-weight="700" fill="#b06a00">AWS Cloud (ap-northeast-2)</text>
 
   <!-- CloudFront -->
   <rect x="100" y="210" width="150" height="94" rx="8" fill="#f3e8ff" stroke="#6a1b9a" stroke-width="1.5"/>
@@ -82,7 +82,7 @@
   <text x="120" y="406" font-size="12" font-weight="700" fill="#2e7d32">Public Subnet</text>
   <rect x="180" y="430" width="300" height="160" rx="8" fill="#ffffff" stroke="#ff9900" stroke-width="1.5"/>
   <text x="195" y="452" font-size="10" font-weight="700" fill="#b06a00">EC2</text>
-  <line x1="330" y1="460" x2="330" y2="545" stroke="#e2e8f0" stroke-width="1.5"/>
+  <line x1="330" y1="445" x2="330" y2="580" stroke="#94a3b8" stroke-width="1.8" stroke-dasharray="5,4"/>
   <use href="#icon-server" x="233" y="460" width="44" height="44" color="#b06a00"/>
   <text x="255" y="536" text-anchor="middle" font-size="12" font-weight="700" fill="#1a202c">Spring 앱서버</text>
   <use href="#icon-bolt" x="388" y="460" width="44" height="44" color="#dc382d"/>
@@ -96,8 +96,9 @@
   <rect x="100" y="640" width="460" height="210" rx="10" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
   <text x="120" y="666" font-size="12" font-weight="700" fill="#1565c0">Private Subnet</text>
   <rect x="250" y="690" width="160" height="120" rx="8" fill="#ffffff" stroke="#ff9900" stroke-width="1.5"/>
-  <use href="#icon-db" x="308" y="700" width="44" height="44" color="#1565c0"/>
-  <text x="330" y="772" text-anchor="middle" font-size="13" font-weight="700" fill="#1a202c">MySQL DB</text>
+  <text x="265" y="712" font-size="10" font-weight="700" fill="#b06a00">EC2</text>
+  <use href="#icon-db" x="308" y="720" width="44" height="44" color="#1565c0"/>
+  <text x="330" y="792" text-anchor="middle" font-size="13" font-weight="700" fill="#1a202c">MySQL DB</text>
 
   <!-- Arrows (직선, 수평/수직만) -->
   <!-- User -> CloudFront -->
@@ -109,15 +110,15 @@
   <text x="335" y="245" text-anchor="middle" font-size="9.5" fill="#2d3748">정적 서빙</text>
 
   <!-- CloudFront -> EC2 backend (Spring) -->
-  <path d="M175,304 L 175,380 L 255,380 L 255,430" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
-  <text x="178" y="372" font-size="10" fill="#2d3748">"/api/*" 프록시 (:8080)</text>
+  <path d="M175,304 L 175,338 L 255,338 L 255,430" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="185" y="325" font-size="10" fill="#2d3748">"/api/*" 프록시 (:8080)</text>
 
   <!-- EC2 backend (Spring) -> EC2 db -->
   <path d="M255,590 L 255,625 L 330,625 L 330,690" fill="none" stroke="#4a5568" stroke-width="1.6" marker-end="url(#arrow)"/>
   <text x="290" y="618" text-anchor="middle" font-size="10" fill="#2d3748">JDBC :3306</text>
 
   <!-- EC2 backend (Spring) -> S3 (direct upload, bypass CloudFront) -->
-  <path d="M305,430 L 305,380 L 495,380 L 495,304" fill="none" stroke="#0f766e" stroke-width="1.6" stroke-dasharray="6,4" marker-end="url(#arrow-teal)"/>
-  <text x="345" y="358" font-size="9.5" fill="#0f766e">IAM Role → PutObject</text>
-  <text x="345" y="372" font-size="9.5" fill="#0f766e">(CDN 미경유 직접 업로드)</text>
+  <path d="M305,430 L 305,338 L 495,338 L 495,304" fill="none" stroke="#0f766e" stroke-width="1.6" stroke-dasharray="6,4" marker-end="url(#arrow-teal)"/>
+  <text x="345" y="353" font-size="9.5" fill="#0f766e">IAM Role → PutObject</text>
+  <text x="345" y="367" font-size="9.5" fill="#0f766e">(CDN 미경유 직접 업로드)</text>
 </svg>
