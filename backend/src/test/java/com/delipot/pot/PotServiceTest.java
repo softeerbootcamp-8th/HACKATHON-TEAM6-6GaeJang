@@ -367,7 +367,7 @@ class PotServiceTest {
 		assertThat(saved.getMenuPrice()).isEqualTo(12000);
 
 		verify(chatService).addMember(CHAT_ROOM_ID, OTHER_ID);
-		verify(chatService).postSystemJoinMessage(CHAT_ROOM_ID, "참여자님이 들어왔어요");
+		verify(chatService).postSystemNoticeMessage(CHAT_ROOM_ID, "참여자님이 들어왔어요");
 		verify(chatService).postSystemMenuMessage(
 			CHAT_ROOM_ID, OTHER_ID, "허니콤보 세트 (순살로 변경) + 콜라 제로 500ml", 12000);
 	}
@@ -430,21 +430,25 @@ class PotServiceTest {
 	// ---------- 나가기 ----------
 
 	@Test
-	@DisplayName("팟을 나가면 인원이 줄고 참여 기록이 지워진다")
+	@DisplayName("팟을 나가면 인원이 줄고 참여 기록이 지워지며 나갔다는 안내가 남는다")
 	void leaveDecreasesCount() {
 		Pot pot = pot(PotStatus.ACTIVE, 3);
 		givenPotExists(pot);
 		given(potMemberRepository.deleteByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(1L);
+		given(memberService.getById(OTHER_ID)).willReturn(
+			Member.register("01022223333", "hash", "참여자", "서울시 강남구"));
 
 		potService().leave(OTHER_ID, POT_ID);
 
 		assertThat(pot.getCurrentMemberCount()).isEqualTo(2);
+		assertThat(pot.isHasMemberLeft()).isTrue();
 		verify(chatService).removeMember(CHAT_ROOM_ID, OTHER_ID);
+		verify(chatService).postSystemNoticeMessage(CHAT_ROOM_ID, "참여자님이 채팅방을 나갔어요");
 	}
 
 	@Test
-	@DisplayName("총대는 팟을 나갈 수 없다 — 정산 계좌 주인이 사라지면 남은 사람이 주문을 이어받을 수 없다")
-	void hostCannotLeave() {
+	@DisplayName("총대는 완료 전엔 팟을 나갈 수 없다 — 정산 계좌 주인이 사라지면 남은 사람이 주문을 이어받을 수 없다")
+	void hostCannotLeaveBeforeCompletion() {
 		Pot pot = pot(PotStatus.ACTIVE, 3);
 		givenPotExists(pot);
 
@@ -455,6 +459,38 @@ class PotServiceTest {
 		assertThat(pot.getCurrentMemberCount()).isEqualTo(3);
 		verify(potMemberRepository, never()).deleteByPotIdAndMemberId(any(), any());
 		verify(chatService, never()).removeMember(any(), any());
+	}
+
+	@Test
+	@DisplayName("나눔 완료 후에는 총대도 참여자처럼 나갈 수 있다")
+	void hostCanLeaveAfterCompletion() {
+		Pot pot = pot(PotStatus.DONE, 3);
+		givenPotExists(pot);
+		given(potMemberRepository.deleteByPotIdAndMemberId(POT_ID, HOST_ID)).willReturn(1L);
+		given(memberService.getById(HOST_ID)).willReturn(
+			Member.register("01011112222", "hash", "총대", "서울시 강남구"));
+
+		potService().leave(HOST_ID, POT_ID);
+
+		assertThat(pot.getCurrentMemberCount()).isEqualTo(2);
+		verify(chatService).removeMember(CHAT_ROOM_ID, HOST_ID);
+		verify(chatService).postSystemNoticeMessage(CHAT_ROOM_ID, "총대님이 채팅방을 나갔어요");
+	}
+
+	@Test
+	@DisplayName("완료 후 나가기는 완료 시점에 이미 확정된 총대 경험치 판정에 영향을 주지 않는다")
+	void leaveAfterCompletionDoesNotRetroactivelyAffectHostExperienceFlag() {
+		Pot pot = pot(PotStatus.DONE, 3);
+		givenPotExists(pot);
+		given(potMemberRepository.deleteByPotIdAndMemberId(POT_ID, OTHER_ID)).willReturn(1L);
+		given(memberService.getById(OTHER_ID)).willReturn(
+			Member.register("01022223333", "hash", "참여자", "서울시 강남구"));
+		boolean experienceBeforeLeave = pot.isCountsAsHostExperience();
+
+		potService().leave(OTHER_ID, POT_ID);
+
+		assertThat(pot.isHasMemberLeft()).isFalse();
+		assertThat(pot.isCountsAsHostExperience()).isEqualTo(experienceBeforeLeave);
 	}
 
 	@Test
@@ -491,6 +527,8 @@ class PotServiceTest {
 		given(potRepository.findById(20L)).willReturn(java.util.Optional.of(potB));
 		given(potMemberRepository.deleteByPotIdAndMemberId(10L, OTHER_ID)).willReturn(1L);
 		given(potMemberRepository.deleteByPotIdAndMemberId(20L, OTHER_ID)).willReturn(1L);
+		given(memberService.getById(OTHER_ID)).willReturn(
+			Member.register("01022223333", "hash", "참여자", "서울시 강남구"));
 
 		potService().leaveAllActivePots(OTHER_ID);
 
@@ -519,7 +557,7 @@ class PotServiceTest {
 		potService().complete(HOST_ID, POT_ID);
 
 		assertThat(pot.getStatus()).isEqualTo(PotStatus.DONE);
-		verify(chatService).postSystemJoinMessage(CHAT_ROOM_ID, "배달팟의 나눔이 완료되었어요");
+		verify(chatService).postSystemNoticeMessage(CHAT_ROOM_ID, "배달팟의 나눔이 완료되었어요");
 	}
 
 	/** 정원이 차서 마감 전에 주문·수령을 끝낸 경우가 정상 흐름이다. 기다리게 하면 끝난 팟이 목록에 남는다. */

@@ -173,7 +173,7 @@ public class PotService {
 	 * 때문이다 — 나누면 참여는 됐는데 메뉴는 없는 중간 상태가 생긴다.
 	 *
 	 * <p>채팅방 입장·공지 순서: 멤버십 추가 → 입장 공지 → 메뉴 공지. 닉네임은 채팅이 몰라도 되게
-	 * 여기서 조회해 완성된 문구로 넘긴다({@code postSystemJoinMessage} 계약).
+	 * 여기서 조회해 완성된 문구로 넘긴다({@code postSystemNoticeMessage} 계약).
 	 *
 	 * <p>정원 초과를 막는 건 두 겹이다. 여기서 {@link Pot#isFull()}로 먼저 걸러내고,
 	 * 두 사람이 같은 순간에 마지막 자리를 노렸을 때는 {@code Pot.version} 낙관적 락이 막는다
@@ -203,7 +203,7 @@ public class PotService {
 
 		String nickname = memberService.getById(memberId).getNickname();
 		chatService.addMember(pot.getChatRoomId(), memberId);
-		chatService.postSystemJoinMessage(pot.getChatRoomId(), nickname + "님이 들어왔어요");
+		chatService.postSystemNoticeMessage(pot.getChatRoomId(), nickname + "님이 들어왔어요");
 		chatService.postSystemMenuMessage(pot.getChatRoomId(), memberId, request.menuContent(), request.menuPrice());
 
 		return new PotJoinResponse(pot.getId(), pot.getChatRoomId(), pot.getCurrentMemberCount());
@@ -239,7 +239,7 @@ public class PotService {
 		return PotDetailResponse.of(
 			pot,
 			memberService.getById(pot.getHostId()).getNickname(),
-			potRepository.countByHostId(pot.getHostId()),
+			potRepository.countByHostIdAndCountsAsHostExperienceTrue(pot.getHostId()),
 			pot.isHost(memberId),
 			isJoined,
 			pot.isDeadlinePassed(OffsetDateTime.now(clock)),
@@ -250,24 +250,29 @@ public class PotService {
 	/**
 	 * 팟 나가기. 채팅방의 "팟 나가기" 버튼이 이걸 부른다.
 	 *
-	 * <p>총대는 나갈 수 없다. 총대가 사라지면 정산 계좌 주인이 없어지고 남은 사람들이
-	 * 주문을 이어받을 방법이 없다. 총대에게는 대신 나눔 완료가 있다.
+	 * <p>총대는 완료 전엔 나갈 수 없다. 완료 전에 사라지면 정산 계좌 주인이 없어지고 남은 사람들이
+	 * 주문을 이어받을 방법이 없다. 완료 전 총대에게는 대신 나눔 완료가 있다 — 완료 후에는 총대도
+	 * 참여자와 동일하게 나갈 수 있다.
 	 *
 	 * <p>채팅방 멤버십도 함께 제거한다 — 나간 뒤에도 방에 남아 메시지를 보고 보낼 수 있으면 안 된다.
+	 * 채팅방에는 "~님이 채팅방을 나갔어요" 안내를 남긴다.
 	 */
 	@Transactional
 	public void leave(Long memberId, Long potId) {
 		Pot pot = findPot(potId);
 
-		if (pot.isHost(memberId)) {
+		if (pot.isHost(memberId) && pot.isActive()) {
 			throw new BusinessException(ErrorCode.POT_HOST_CANNOT_LEAVE);
 		}
 		if (potMemberRepository.deleteByPotIdAndMemberId(potId, memberId) == 0) {
 			throw new BusinessException(ErrorCode.POT_NOT_JOINED);
 		}
 
+		String nickname = memberService.getById(memberId).getNickname();
+		pot.recordMemberLeft();
 		pot.decreaseMemberCount();
 		chatService.removeMember(pot.getChatRoomId(), memberId);
+		chatService.postSystemNoticeMessage(pot.getChatRoomId(), nickname + "님이 채팅방을 나갔어요");
 	}
 
 	/**
@@ -277,7 +282,7 @@ public class PotService {
 	 * <p>마감시간 전이라도 누를 수 있다. 정원이 다 차서 일찍 주문하고 받아 나눈 경우가 정상 흐름이고,
 	 * 그때 마감시간까지 기다리게 하면 끝난 팟이 전체 목록에 계속 떠 있게 된다.
 	 *
-	 * <p>완료 공지를 채팅방에 남긴다({@code postSystemJoinMessage} 재사용 — 문구만 다른
+	 * <p>완료 공지를 채팅방에 남긴다({@code postSystemNoticeMessage} 재사용 — 문구만 다른
 	 * 센터 정렬 시스템 안내라 별도 타입을 만들지 않는다).
 	 */
 	@Transactional
@@ -290,13 +295,13 @@ public class PotService {
 		}
 
 		pot.complete();
-		chatService.postSystemJoinMessage(pot.getChatRoomId(), "배달팟의 나눔이 완료되었어요");
+		chatService.postSystemNoticeMessage(pot.getChatRoomId(), "배달팟의 나눔이 완료되었어요");
 	}
 
 	/** 마이페이지 "총대 N회" 배지. */
 	@Transactional(readOnly = true)
 	public long countHostedPots(Long memberId) {
-		return potRepository.countByHostId(memberId);
+		return potRepository.countByHostIdAndCountsAsHostExperienceTrue(memberId);
 	}
 
 	/** 회원 탈퇴 검증용 — 총대로 있는 살아있는 팟이 있으면 탈퇴를 막아야 한다. */
@@ -334,7 +339,7 @@ public class PotService {
 		potRepository.completeAbandoned(threshold);
 
 		for (Long chatRoomId : abandonedChatRoomIds) {
-			chatService.postSystemJoinMessage(chatRoomId, "배달팟의 나눔이 완료되었어요");
+			chatService.postSystemNoticeMessage(chatRoomId, "배달팟의 나눔이 완료되었어요");
 		}
 	}
 
