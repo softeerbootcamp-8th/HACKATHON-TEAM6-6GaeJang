@@ -30,18 +30,25 @@ interface UseChatSocketResult {
 export function useChatSocket(
   roomId: number,
   onMessage: (message: ChatMessageResponse) => void,
+  onReconnect?: () => void,
 ): UseChatSocketResult {
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const clientRef = useRef<Client | null>(null)
   const onMessageRef = useRef(onMessage)
+  const onReconnectRef = useRef(onReconnect)
 
   useEffect(() => {
     onMessageRef.current = onMessage
   }, [onMessage])
 
   useEffect(() => {
+    onReconnectRef.current = onReconnect
+  }, [onReconnect])
+
+  useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    let hasConnected = false
     const client = new Client({
       // vite proxy(/ws → localhost:8080, ws:true)와 배포 시 CloudFront가 동일하게 프록시한다.
       brokerURL: `${protocol}://${window.location.host}/ws`,
@@ -58,6 +65,11 @@ export function useChatSocket(
           const body = JSON.parse(message.body) as ChatErrorMessage
           setError(body.message)
         })
+
+        // 끊겨 있던 동안 온 메시지는 소켓으로 오지 않는다. 재연결 시 호출자가 이력을 다시
+        // 받아 공백을 메우게 한다. 최초 연결은 이력 조회 직후라 건너뛴다.
+        if (hasConnected) onReconnectRef.current?.()
+        hasConnected = true
       },
       onWebSocketClose: () => setConnected(false),
       onStompError: (frame) => {

@@ -87,10 +87,18 @@ function ChatRoomPage() {
   const [liveMessages, setLiveMessages] = useState<ChatMessageResponse[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const { connected, error, sendMessage } = useChatSocket(roomId, (message) => {
-    setLiveMessages((prev) => [...prev, message])
-    markRead.mutate({ roomId })
-  })
+  const { connected, error, sendMessage } = useChatSocket(
+    roomId,
+    (message) => {
+      setLiveMessages((prev) => [...prev, message])
+      markRead.mutate({ roomId })
+    },
+    // 소켓이 끊겼던 동안(백그라운드 전환·네트워크 변경) 온 메시지는 브로드캐스트를 놓쳤다.
+    // 재연결 시 이력을 다시 받아 메운다. liveMessages와 겹치는 건 아래 id 기준 dedupe가 걸러낸다.
+    () => {
+      void history.refetch()
+    },
+  )
 
   // 업로드가 성공하면 서버가 같은 /topic/rooms/{roomId}로 브로드캐스트하므로,
   // 여기서 직접 liveMessages에 추가하지 않는다(중복 렌더 방지) — useChatSocket의 onMessage가 받는다.
@@ -108,7 +116,15 @@ function ChatRoomPage() {
   }, [roomId, member, history.isSuccess])
 
   const historyMessages = [...(history.data?.data?.messages ?? [])].reverse()
-  const messages = [...historyMessages, ...liveMessages]
+  // 재연결 시 이력을 다시 받으면 소켓으로 이미 받아둔 메시지와 겹친다. id로 걸러 중복 표시를
+  // 막는다. 이력을 먼저 두었으므로 겹칠 땐 서버가 확정한 쪽이 남는다.
+  const seenMessageIds = new Set<number>()
+  const messages = [...historyMessages, ...liveMessages].filter((message) => {
+    if (message.id == null) return true
+    if (seenMessageIds.has(message.id)) return false
+    seenMessageIds.add(message.id)
+    return true
+  })
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
