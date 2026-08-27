@@ -23,6 +23,7 @@ export function useChatRoomsSocket(roomIds: number[], onMessage: () => void) {
 
     const ids = roomIdsKey.split(',').map(Number)
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    let hasConnected = false
     const client = new Client({
       brokerURL: `${protocol}://${window.location.host}/ws`,
       reconnectDelay: 3000,
@@ -32,6 +33,12 @@ export function useChatRoomsSocket(roomIds: number[], onMessage: () => void) {
             onMessageRef.current()
           })
         }
+
+        // 소켓은 "지금부터 오는 것"만 전달한다. 끊겨 있던 동안 도착한 메시지는 아무도 알려주지
+        // 않으므로 재연결 시 목록을 한 번 다시 받아 공백을 메운다. 최초 연결 때는 목록을 막
+        // 받아온 직후라 건너뛴다.
+        if (hasConnected) onMessageRef.current()
+        hasConnected = true
       },
     })
 

@@ -98,6 +98,10 @@ function HomePage() {
       query: {
         enabled: !!member,
         placeholderData: (previousData) => previousData,
+        // 남이 연 팟·참여 현황은 소켓 신호가 없어서 화면에 머무는 동안 갱신될 길이 없다.
+        // 탭이 백그라운드면 타이머가 자동으로 멈추므로(refetchIntervalInBackground 기본 false)
+        // 실제 요청은 사용자가 홈을 보고 있는 동안에만 나간다.
+        refetchInterval: 15_000,
       },
     },
   )
